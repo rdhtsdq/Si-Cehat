@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fff9e9;
+  --foreground: #173d31;
+  --ink: #173d31;
+  --leaf: #247a4d;
+  --leaf-dark: #15583c;
+  --cream: #fff9e9;
+  --sun: #f4b942;
+  --coral: #ef6a55;
+  --sky: #bde5db;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Trebuchet MS", "Arial Rounded MT Bold", Arial, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid #173d31;
+  outline-offset: 3px;
+}
+
+.display-font {
+  font-family: "Arial Rounded MT Bold", "Trebuchet MS", Arial, sans-serif;
+  letter-spacing: -0.035em;
+}
+
+.adventure-sky {
+  background-color: var(--sky);
+  background-image:
+    radial-gradient(circle at 12% 16%, rgb(255 255 255 / 65%) 0 5%, transparent 5.4%),
+    radial-gradient(circle at 86% 10%, rgb(255 255 255 / 48%) 0 7%, transparent 7.4%),
+    linear-gradient(180deg, #bde5db 0%, #d9eee0 62%, #f5d888 62.3%, #f5d888 100%);
+}
+
+.adventure-paper {
+  border: 3px solid var(--ink);
+  box-shadow: 6px 7px 0 var(--ink);
+}
+
+.game-button {
+  border: 3px solid var(--ink);
+  box-shadow: 0 5px 0 var(--ink);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.game-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 7px 0 var(--ink);
+}
+
+.game-button:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 var(--ink);
+}
+
+.map-grid {
+  background-image: radial-gradient(rgb(23 61 49 / 12%) 1.5px, transparent 1.5px);
+  background-size: 18px 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

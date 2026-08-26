@@ -1,0 +1,134 @@
+{
+  ".opencode/opencode.json": {
+    "mtime": 1787747854.741904,
+    "seen": 1787748548.2106192,
+    "ast_hash": "ab40884546b46ac6986c17c0b74041ec",
+    "semantic_hash": "ab40884546b46ac6986c17c0b74041ec"
+  },
+  ".opencode/plugins/graphify.js": {
+    "mtime": 1787747702.2201822,
+    "seen": 1787748548.2106192,
+    "ast_hash": "b33d000860642c6f4907a877e0387a21",
+    "semantic_hash": "b33d000860642c6f4907a877e0387a21"
+  },
+  "eslint.config.mjs": {
+    "mtime": 1787745618.9719627,
+    "seen": 1787748548.2106192,
+    "ast_hash": "816c033297dffd38b47fd8801d3c9b96",
+    "semantic_hash": "816c033297dffd38b47fd8801d3c9b96"
+  },
+  "next-env.d.ts": {
+    "mtime": 1787748577.8856413,
+    "seen": 1787748621.573901,
+    "ast_hash": "ba64ff7d54714a8f64db89b1003207d8",
+    "semantic_hash": ""
+  },
+  "next.config.ts": {
+    "mtime": 1787745618.969927,
+    "seen": 1787748548.2106192,
+    "ast_hash": "daad32b4de0b92afe04301ebf0a6cc76",
+    "semantic_hash": "daad32b4de0b92afe04301ebf0a6cc76"
+  },
+  "package.json": {
+    "mtime": 1787757563.9349682,
+    "seen": 1787757693.3864753,
+    "ast_hash": "6b00091fefbecd6fd12a3a13109a4d76",
+    "semantic_hash": ""
+  },
+  "postcss.config.mjs": {
+    "mtime": 1787745618.9709916,
+    "seen": 1787748548.2106192,
+    "ast_hash": "239f3ebf717465dc636818a1a619398d",
+    "semantic_hash": "239f3ebf717465dc636818a1a619398d"
+  },
+  "src/app/api/chat/route.ts": {
+    "mtime": 1787746384.8116555,
+    "seen": 1787748548.2106192,
+    "ast_hash": "13ecc6f951dc0f02afe3ab084f86367f",
+    "semantic_hash": "13ecc6f951dc0f02afe3ab084f86367f"
+  },
+  "src/app/avatar/page.tsx": {
+    "mtime": 1787758307.3383381,
+    "seen": 1787758420.4742448,
+    "ast_hash": "8711000a0fa2f3511c692c45a638b039",
+    "semantic_hash": ""
+  },
+  "src/app/chat/page.tsx": {
+    "mtime": 1787758401.039542,
+    "seen": 1787758420.4742448,
+    "ast_hash": "5c9df3c24ba20489d0bd40aa74551923",
+    "semantic_hash": ""
+  },
+  "src/app/layout.tsx": {
+    "mtime": 1787757153.9922009,
+    "seen": 1787757693.3864753,
+    "ast_hash": "063525deaf48d1c5920569a572ff10a1",
+    "semantic_hash": ""
+  },
+  "src/app/page.tsx": {
+    "mtime": 1787758307.2991748,
+    "seen": 1787758420.4742448,
+    "ast_hash": "7e961fe7db1505bde353a4c70f6fa203",
+    "semantic_hash": ""
+  },
+  "src/components/AvatarRenderer.tsx": {
+    "mtime": 1787758307.2794693,
+    "seen": 1787758420.4742448,
+    "ast_hash": "4b20c5d9792ef6940f12fd1a66db462b",
+    "semantic_hash": ""
+  },
+  "src/lib/avatar.ts": {
+    "mtime": 1787757153.9892006,
+    "seen": 1787757693.3864753,
+    "ast_hash": "18ef9047fb88d06c53da1d1accdab792",
+    "semantic_hash": ""
+  },
+  "src/lib/chat.ts": {
+    "mtime": 1787746292.3581395,
+    "seen": 1787748548.2106192,
+    "ast_hash": "7e1608363127425228c21f4e2f3c232b",
+    "semantic_hash": "7e1608363127425228c21f4e2f3c232b"
+  },
+  "tsconfig.json": {
+    "mtime": 1787748577.8826418,
+    "seen": 1787748621.573901,
+    "ast_hash": "f15a3f4333515bfa581ee7d6ec7729e8",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1787747702.2131815,
+    "seen": 1787748548.2106192,
+    "ast_hash": "bd24e62787f653cd35e14407facdfea8",
+    "semantic_hash": "bd24e62787f653cd35e14407facdfea8"
+  },
+  "PRD.md": {
+    "mtime": 1787755581.3328898,
+    "seen": 1787755590.1229224,
+    "ast_hash": "e56cb96a0ed729c3d08b6542a59bbed9",
+    "semantic_hash": ""
+  },
+  "src/app/child/page.tsx": {
+    "mtime": 1787758336.097908,
+    "seen": 1787758420.4742448,
+    "ast_hash": "1b63edbb5a3b6526859f42eb24a987ee",
+    "semantic_hash": ""
+  },
+  "src/app/parent/page.tsx": {
+    "mtime": 1787758307.3413608,
+    "seen": 1787758420.4742448,
+    "ast_hash": "4d5cc71872271e0bdefe7f8b40880d37",
+    "semantic_hash": ""
+  },
+  "src/lib/progress.ts": {
+    "mtime": 1787758336.1123059,
+    "seen": 1787758420.4742448,
+    "ast_hash": "b9b171eda01b238771165680a28db1fe",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1787758225.1270506,
+    "seen": 1787758420.4742448,
+    "ast_hash": "428d3c02c37f1921278c2693fd31c4ce",
+    "semantic_hash": ""
+  }
+}
