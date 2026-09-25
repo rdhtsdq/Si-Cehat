@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Guardian {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("GUARDIAN") // "GUARDIAN" | "ADMIN"
+  children     Child[]
+}
+
+model Child {
+  id               String          @id @default(uuid())
+  guardianId       String
+  guardian         Guardian        @relation(fields: [guardianId], references: [id])
+  name             String
+  avatarPreference String?         // Stored as JSON string
+  dailyProgresses  DailyProgress[]
+  foodLogs         FoodLog[]
+  chatSessions     ChatSession[]
+}
+
+model DailyProgress {
+  id               String   @id @default(uuid())
+  childId          String
+  child            Child    @relation(fields: [childId], references: [id])
+  date             DateTime @db.Date
+  waterGlasses     Int      @default(0)
+  activityMinutes  Int      @default(0)
+  xpEarned         Int      @default(0)
+  streak           Int      @default(0)
+}
+
+model FoodLog {
+  id      String   @id @default(uuid())
+  childId String
+  child   Child    @relation(fields: [childId], references: [id])
+  date    DateTime @db.Date
+  name    String
+  tone    String   // balanced, sweet, fried, unknown
+}
+
+model ChatSession {
+  id        String        @id @default(uuid())
+  childId   String
+  child     Child         @relation(fields: [childId], references: [id])
+  startedAt DateTime      @default(now())
+  messages  ChatMessage[]
+}
+
+model ChatMessage {
+  id        String      @id @default(uuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id])
+  role      String      // user, assistant
+  content   String
+  createdAt DateTime    @default(now())
+}
+
+model Challenge {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  xp          Int      @default(30)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model Quiz {
+  id        String   @id @default(uuid())
+  question  String
+  options   String   // JSON string array e.g. ["Air putih", "Soda", "Teh manis"]
+  answer    String
+  xp        Int      @default(20)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model RecommendedMenu {
+  id         String   @id @default(uuid())
+  title      String
+  note       String
+  orderIndex Int      @default(0)
+  createdAt  DateTime @default(now())
+}
+
+model BotConfig {
+  id           String   @id @default("default")
+  provider     String   @default("openai") // openai | gemini | deepseek | custom
+  model        String   @default("gpt-4o-mini")
+  baseUrl      String?
+  apiKey       String?
+  systemPrompt String   @db.Text
+  temperature  Float    @default(0.5)
+  maxTokens    Int      @default(300)
+  updatedAt    DateTime @updatedAt
+}
+

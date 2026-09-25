@@ -90,6 +90,28 @@ export function loadAvatarPreference(): AvatarPreference {
   }
 }
 
-export function saveAvatarPreference(preference: AvatarPreference) {
+export function saveAvatarPreference(preference: AvatarPreference, childId?: string) {
   window.localStorage.setItem(avatarStorageKey, JSON.stringify(preference));
+  syncAvatarWithBackend(preference, childId).catch(() => {
+    // Fail silently in background for offline support
+  });
 }
+
+export async function syncAvatarWithBackend(preference: AvatarPreference, childId?: string) {
+  if (typeof window === "undefined") return;
+  try {
+    await fetch("/api/avatar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        childId,
+        character: preference.character,
+        accessory: preference.accessory,
+        orbColor: preference.orbColor,
+      }),
+    });
+  } catch {
+    // Offline resilience
+  }
+}
+
