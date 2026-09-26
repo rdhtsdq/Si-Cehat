@@ -7,15 +7,19 @@
     "build": "bunx next build",
     "start": "bunx next start",
     "lint": "bunx eslint .",
-    "typecheck": "bunx tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit",
+    "postinstall": "prisma skills sync || exit 0"
   },
   "dependencies": {
+    "@prisma/client": "6",
     "@tailwindcss/postcss": "4.1.12",
+    "bcryptjs": "^3.0.3",
     "framer-motion": "12.23.12",
     "motion": "12.23.12",
     "motion-dom": "12.23.12",
     "motion-utils": "12.23.6",
     "next": "15.5.2",
+    "next-auth": "^5.0.0-beta.32",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "tailwindcss": "4.1.12",
@@ -23,11 +27,13 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "3.3.1",
+    "@types/bcryptjs": "^3.0.0",
     "@types/node": "24.3.0",
     "@types/react": "19.1.12",
     "@types/react-dom": "19.1.9",
     "eslint": "9.34.0",
     "eslint-config-next": "15.5.2",
+    "prisma": "6",
     "typescript": "5.9.2"
   },
   "overrides": {

@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Guardian" ADD COLUMN     "role" TEXT NOT NULL DEFAULT 'GUARDIAN';

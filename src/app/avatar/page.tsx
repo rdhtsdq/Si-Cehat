@@ -19,11 +19,23 @@ export default function AvatarPage() {
 
   useEffect(() => {
     setPreference(loadAvatarPreference());
+    const storedChildId = typeof window !== "undefined" ? localStorage.getItem("si-cehat-active-child-id") : null;
+    const url = storedChildId ? `/api/avatar?childId=${encodeURIComponent(storedChildId)}` : "/api/avatar";
+    fetch(url)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.character) {
+          setPreference(data);
+          saveAvatarPreference(data, storedChildId || undefined);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   function updatePreference(next: AvatarPreference) {
     setPreference(next);
-    saveAvatarPreference(next);
+    const storedChildId = typeof window !== "undefined" ? localStorage.getItem("si-cehat-active-child-id") || undefined : undefined;
+    saveAvatarPreference(next, storedChildId);
   }
 
   return (

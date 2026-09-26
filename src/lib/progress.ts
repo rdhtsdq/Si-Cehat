@@ -73,6 +73,18 @@ function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
+export const activeChildIdStorageKey = "si-cehat-active-child-id";
+
+export function getActiveChildId(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  return window.localStorage.getItem(activeChildIdStorageKey) || undefined;
+}
+
+export function setActiveChildId(childId: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(activeChildIdStorageKey, childId);
+}
+
 export function createDefaultProgress(): DailyProgress {
   return {
     date: todayKey(),
@@ -108,9 +120,54 @@ export function loadProgress(): DailyProgress {
   }
 }
 
-export function saveProgress(progress: DailyProgress) {
-  window.localStorage.setItem(progressStorageKey, JSON.stringify(progress));
+export function broadcastProgressUpdate(progress: DailyProgress) {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new CustomEvent("si-cehat-progress-updated", { detail: progress }));
+    if ("BroadcastChannel" in window) {
+      const channel = new BroadcastChannel("si-cehat-sync");
+      channel.postMessage({ type: "PROGRESS_UPDATED", progress });
+      channel.close();
+    }
+  } catch {}
 }
+
+export function saveProgress(progress: DailyProgress, childId?: string) {
+  window.localStorage.setItem(progressStorageKey, JSON.stringify(progress));
+  broadcastProgressUpdate(progress);
+  const targetId = childId || getActiveChildId();
+  syncProgressWithBackend(progress, targetId).catch(() => {
+    // Fail silently in background to preserve offline capability
+  });
+}
+
+export async function syncProgressWithBackend(progress: DailyProgress, childId?: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const res = await fetch("/api/progress", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        childId,
+        date: progress.date,
+        waterGlasses: progress.waterGlasses,
+        activityMinutes: progress.activityMinutes,
+        xpEarned: progress.xp,
+        streak: progress.streak,
+        foodLogs: progress.foodLogs,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.childId) {
+        window.localStorage.setItem(activeChildIdStorageKey, data.childId);
+      }
+    }
+  } catch {
+    // Offline resilience
+  }
+}
+
 
 export function summarizeProgress(progress: DailyProgress): ProgressSummary {
   const healthyFoodCount = progress.foodLogs.filter((food) => food.tone === "balanced").length;

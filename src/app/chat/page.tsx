@@ -20,6 +20,17 @@ export default function ChatPage() {
 
   useEffect(() => {
     setAvatar(loadAvatarPreference());
+    const storedChildId = typeof window !== "undefined" ? localStorage.getItem("si-cehat-active-child-id") : null;
+    const url = storedChildId ? `/api/avatar?childId=${encodeURIComponent(storedChildId)}` : "/api/avatar";
+    fetch(url)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.character) {
+          setAvatar(data);
+        }
+      })
+      .catch(() => {});
+
     return () => {
       if (resetTimerRef.current) window.clearTimeout(resetTimerRef.current);
     };

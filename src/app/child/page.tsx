@@ -3,13 +3,17 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { AvatarRenderer } from "@/components/AvatarRenderer";
-import { defaultAvatarPreference, loadAvatarPreference, type AvatarPreference } from "@/lib/avatar";
+import { avatarStorageKey, defaultAvatarPreference, loadAvatarPreference, type AvatarPreference } from "@/lib/avatar";
 import {
+  activeChildIdStorageKey,
   addXp,
   createDefaultProgress,
   dailyQuiz,
+  getActiveChildId,
   loadProgress,
+  progressStorageKey,
   saveProgress,
+  setActiveChildId,
   summarizeProgress,
   todayChallenge,
   type DailyProgress,
@@ -24,15 +28,44 @@ const foodToneLabels: Record<MealTone, string> = {
 };
 
 function MissionIcon({ type }: { type: "water" | "move" | "food" | "quiz" }) {
-  if (type === "water") return <svg aria-hidden="true" className="h-10 w-10" viewBox="0 0 48 48"><path d="M24 4S10 22 10 31a14 14 0 0028 0C38 22 24 4 24 4z" fill="#75c8e8" stroke="#173d31" strokeWidth="3" /><path d="M17 32q2 7 9 7" fill="none" stroke="white" strokeLinecap="round" strokeWidth="3" /></svg>;
-  if (type === "move") return <svg aria-hidden="true" className="h-10 w-10" viewBox="0 0 48 48"><circle cx="29" cy="8" r="5" fill="#f4b942" stroke="#173d31" strokeWidth="3" /><path d="M27 16l-8 10 8 5-7 12M27 17l8 9 8-3M27 31l10 10" fill="none" stroke="#173d31" strokeLinecap="round" strokeLinejoin="round" strokeWidth="5" /></svg>;
-  if (type === "food") return <svg aria-hidden="true" className="h-10 w-10" viewBox="0 0 48 48"><path d="M13 7v14M7 7v9q0 6 6 6t6-6V7M13 22v20M35 7v35M35 7q9 8 0 20" fill="none" stroke="#173d31" strokeLinecap="round" strokeWidth="4" /></svg>;
-  return <svg aria-hidden="true" className="h-10 w-10" viewBox="0 0 48 48"><path d="M24 5a16 16 0 00-9 29v8l9-5a16 16 0 100-32z" fill="#fff9e9" stroke="#173d31" strokeWidth="3" /><path d="M19 18q1-6 6-6 6 0 6 5 0 4-6 6v4M25 32h.1" fill="none" stroke="#173d31" strokeLinecap="round" strokeWidth="4" /></svg>;
+  if (type === "water") {
+    return (
+      <svg aria-hidden="true" className="h-10 w-10" viewBox="0 0 48 48">
+        <path d="M24 4S10 22 10 31a14 14 0 0028 0C38 22 24 4 24 4z" fill="#75c8e8" stroke="#173d31" strokeWidth="3" />
+        <path d="M17 32q2 7 9 7" fill="none" stroke="white" strokeLinecap="round" strokeWidth="3" />
+      </svg>
+    );
+  }
+  if (type === "move") {
+    return (
+      <svg aria-hidden="true" className="h-10 w-10" viewBox="0 0 48 48">
+        <circle cx="29" cy="8" r="5" fill="#f4b942" stroke="#173d31" strokeWidth="3" />
+        <path d="M27 16l-8 10 8 5-7 12M27 17l8 9 8-3M27 31l10 10" fill="none" stroke="#173d31" strokeLinecap="round" strokeLinejoin="round" strokeWidth="5" />
+      </svg>
+    );
+  }
+  if (type === "food") {
+    return (
+      <svg aria-hidden="true" className="h-10 w-10" viewBox="0 0 48 48">
+        <path d="M13 7v14M7 7v9q0 6 6 6t6-6V7M13 22v20M35 7v35M35 7q9 8 0 20" fill="none" stroke="#173d31" strokeLinecap="round" strokeWidth="4" />
+      </svg>
+    );
+  }
+  return (
+    <svg aria-hidden="true" className="h-10 w-10" viewBox="0 0 48 48">
+      <path d="M24 5a16 16 0 00-9 29v8l9-5a16 16 0 100-32z" fill="#fff9e9" stroke="#173d31" strokeWidth="3" />
+      <path d="M19 18q1-6 6-6 6 0 6 5 0 4-6 6v4M25 32h.1" fill="none" stroke="#173d31" strokeLinecap="round" strokeWidth="4" />
+    </svg>
+  );
 }
 
 export default function ChildDashboardPage() {
   const [avatar, setAvatar] = useState<AvatarPreference>(defaultAvatarPreference);
   const [progress, setProgress] = useState<DailyProgress>(() => createDefaultProgress());
+  const [activeChildId, setActiveChildIdState] = useState<string>("");
+  const [isCloudSynced, setIsCloudSynced] = useState<boolean>(false);
+  const [currentChallenge, setCurrentChallenge] = useState(todayChallenge);
+  const [currentQuiz, setCurrentQuiz] = useState(dailyQuiz);
   const [foodName, setFoodName] = useState("");
   const [foodTone, setFoodTone] = useState<MealTone>("balanced");
   const [quizAnswer, setQuizAnswer] = useState("");
@@ -41,14 +74,124 @@ export default function ChildDashboardPage() {
   const level = Math.floor(progress.xp / 100) + 1;
   const levelProgress = progress.xp % 100;
 
+  async function syncWithCloud(forcedChildId?: string) {
+    try {
+      const targetId = forcedChildId || getActiveChildId();
+      const url = targetId ? `/api/progress?childId=${encodeURIComponent(targetId)}` : "/api/progress";
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (data && data.childId) {
+        setIsCloudSynced(true);
+        setActiveChildIdState(data.childId);
+        setActiveChildId(data.childId);
+
+        setProgress((prev) => {
+          const next: DailyProgress = {
+            date: data.date || prev.date,
+            childName: data.childName || prev.childName,
+            waterGlasses: data.waterGlasses ?? prev.waterGlasses,
+            activityMinutes: data.activityMinutes ?? prev.activityMinutes,
+            xp: data.xp ?? prev.xp,
+            streak: data.streak ?? prev.streak,
+            foodLogs: data.foodLogs ?? prev.foodLogs,
+            challengeCompleted: prev.challengeCompleted,
+            quizCompleted: prev.quizCompleted,
+          };
+          window.localStorage.setItem(progressStorageKey, JSON.stringify(next));
+          return next;
+        });
+
+        if (data.avatarPreference) {
+          setAvatar(data.avatarPreference);
+          window.localStorage.setItem(avatarStorageKey, JSON.stringify(data.avatarPreference));
+        }
+      }
+    } catch {
+      // Offline resilience
+    }
+  }
+
   useEffect(() => {
+    // 1. Initial fast local load
     setAvatar(loadAvatarPreference());
-    setProgress(loadProgress());
+    const local = loadProgress();
+    setProgress(local);
+    const storedChildId = getActiveChildId();
+    if (storedChildId) setActiveChildIdState(storedChildId);
+
+    // 2. Immediate cloud synchronization
+    void syncWithCloud();
+
+    // 3. Dynamic CMS content
+    fetch("/api/content")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.challenge) setCurrentChallenge(data.challenge);
+        if (data.quiz) setCurrentQuiz(data.quiz);
+      })
+      .catch(() => {});
+
+    // 4. Multi-tab and Cross-session Real-Time Listeners
+    function handleLocalSync(updated?: DailyProgress) {
+      if (updated) {
+        setProgress(updated);
+      } else {
+        setProgress(loadProgress());
+      }
+      setAvatar(loadAvatarPreference());
+    }
+
+    const onCustomEvent = (e: Event) => {
+      const detail = (e as CustomEvent<DailyProgress>).detail;
+      handleLocalSync(detail);
+    };
+    window.addEventListener("si-cehat-progress-updated", onCustomEvent);
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === progressStorageKey || e.key === avatarStorageKey || e.key === activeChildIdStorageKey) {
+        handleLocalSync();
+        void syncWithCloud();
+      }
+    };
+    window.addEventListener("storage", onStorage);
+
+    let channel: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        channel = new BroadcastChannel("si-cehat-sync");
+        channel.onmessage = (event) => {
+          if (event.data?.type === "PROGRESS_UPDATED" && event.data.progress) {
+            handleLocalSync(event.data.progress);
+          } else if (event.data?.type === "PARENT_LOGGED_IN" || event.data?.type === "CHILD_SELECTED") {
+            if (event.data.childId) {
+              setActiveChildIdState(event.data.childId);
+            }
+            void syncWithCloud(event.data.childId);
+          }
+        };
+      }
+    } catch {}
+
+    const onFocus = () => {
+      void syncWithCloud();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+
+    return () => {
+      window.removeEventListener("si-cehat-progress-updated", onCustomEvent);
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+      if (channel) channel.close();
+    };
   }, []);
 
   function updateProgress(next: DailyProgress, message: string) {
     setProgress(next);
-    saveProgress(next);
+    saveProgress(next, activeChildId || undefined);
     setFeedback(message);
   }
 
@@ -79,17 +222,17 @@ export default function ChildDashboardPage() {
 
   function completeChallenge() {
     if (progress.challengeCompleted) return;
-    updateProgress(addXp({ ...progress, challengeCompleted: true }, todayChallenge.xp), `Misi utama selesai! Kamu mendapat ${todayChallenge.xp} XP.`);
+    updateProgress(addXp({ ...progress, challengeCompleted: true }, currentChallenge.xp), `Misi utama selesai! Kamu mendapat ${currentChallenge.xp} XP.`);
   }
 
   function answerQuiz(option: string) {
     setQuizAnswer(option);
     if (progress.quizCompleted) return;
-    const correct = option === dailyQuiz.answer;
+    const correct = option === currentQuiz.answer;
     if (correct) {
-      updateProgress(addXp({ ...progress, quizCompleted: true }, dailyQuiz.xp), `Jawaban tepat! +${dailyQuiz.xp} XP.`);
+      updateProgress(addXp({ ...progress, quizCompleted: true }, currentQuiz.xp), `Jawaban tepat! +${currentQuiz.xp} XP.`);
     } else {
-      setFeedback("Percobaan bagus. Petunjuk: pilih minuman tanpa gula tambahan.");
+      setFeedback("Percobaan bagus. Petunjuk: pilih jawaban yang paling sehat untuk tubuhmu.");
     }
   }
 
@@ -103,6 +246,11 @@ export default function ChildDashboardPage() {
             <span className="hidden text-sm font-black text-[#247a4d] sm:block">Peta {progress.childName}</span>
           </div>
           <div className="flex items-center gap-2">
+            {isCloudSynced && (
+              <span className="hidden rounded-full bg-[#dce9df] px-3 py-1.5 text-xs font-black text-[#247a4d] sm:inline-block">
+                ● Tersinkron Akun
+              </span>
+            )}
             <div className="rounded-full bg-[#f4b942] px-4 py-2 text-sm font-black text-[#173d31]">Level {level}</div>
             <div className="rounded-full bg-[#ef6a55] px-4 py-2 text-sm font-black text-[#173d31]">{progress.xp} XP</div>
             <Link aria-label="Buka area orang tua" className="rounded-full border-2 border-[#173d31] px-3 py-2 text-sm font-black text-[#173d31]" href="/parent">Orang Tua</Link>
@@ -189,15 +337,15 @@ export default function ChildDashboardPage() {
               <div className="flex items-start justify-between gap-3"><MissionIcon type="quiz" /><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#173d31]">Misi utama</span></div>
               <h3 className="display-font mt-2 text-2xl font-black text-[#173d31]">Bukit Tantangan</h3>
               <div className="mt-3 rounded-2xl border-2 border-[#173d31] bg-[#f4b942] p-3">
-                <p className="font-black text-[#173d31]">{todayChallenge.title}</p>
-                <p className="mt-1 text-sm font-bold leading-5 text-[#285648]">{todayChallenge.description}</p>
-                <button className="mt-3 min-h-11 w-full rounded-full border-2 border-[#173d31] bg-white px-4 text-sm font-black text-[#173d31] disabled:opacity-60" disabled={progress.challengeCompleted} onClick={completeChallenge} type="button">{progress.challengeCompleted ? "Misi selesai!" : `Tandai selesai +${todayChallenge.xp} XP`}</button>
+                <p className="font-black text-[#173d31]">{currentChallenge.title}</p>
+                <p className="mt-1 text-sm font-bold leading-5 text-[#285648]">{currentChallenge.description}</p>
+                <button className="mt-3 min-h-11 w-full rounded-full border-2 border-[#173d31] bg-white px-4 text-sm font-black text-[#173d31] disabled:opacity-60" disabled={progress.challengeCompleted} onClick={completeChallenge} type="button">{progress.challengeCompleted ? "Misi selesai!" : `Tandai selesai +${currentChallenge.xp} XP`}</button>
               </div>
-              <p className="mt-4 text-sm font-black text-[#173d31]">Kuis: {dailyQuiz.question}</p>
+              <p className="mt-4 text-sm font-black text-[#173d31]">Kuis: {currentQuiz.question}</p>
               <div className="mt-2 grid gap-2">
-                {dailyQuiz.options.map((option) => <button className="min-h-10 rounded-full border-2 border-[#173d31] bg-white px-4 text-left text-sm font-bold text-[#173d31] transition hover:bg-[#fff9e9] disabled:opacity-60" disabled={progress.quizCompleted} key={option} onClick={() => answerQuiz(option)} type="button">{option}</button>)}
+                {currentQuiz.options.map((option) => <button className="min-h-10 rounded-full border-2 border-[#173d31] bg-white px-4 text-left text-sm font-bold text-[#173d31] transition hover:bg-[#fff9e9] disabled:opacity-60" disabled={progress.quizCompleted} key={option} onClick={() => answerQuiz(option)} type="button">{option}</button>)}
               </div>
-              {quizAnswer ? <p className="mt-2 text-sm font-black text-[#173d31]">{quizAnswer === dailyQuiz.answer ? "Tepat! Bintang untukmu." : "Belum tepat, tetapi kamu sudah berani mencoba."}</p> : null}
+              {quizAnswer ? <p className="mt-2 text-sm font-black text-[#173d31]">{quizAnswer === currentQuiz.answer ? "Tepat! Bintang untukmu." : "Belum tepat, tetapi kamu sudah berani mencoba."}</p> : null}
             </article>
           </div>
           <div className="h-8 lg:h-12" />
