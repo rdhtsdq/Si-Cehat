@@ -11,8 +11,18 @@ model Guardian {
   id           String   @id @default(uuid())
   email        String   @unique
   passwordHash String
+  name         String?  // Nama Ibu
+  phone        String?  // No. HP
+  education    String?  // Pendidikan
+  occupation   String?  // Pekerjaan
+  address      String?  // Alamat
   role         String   @default("GUARDIAN") // "GUARDIAN" | "ADMIN"
-  children     Child[]
+  createdAt    DateTime @default(now())
+
+  children      Child[]
+  reminders     Reminder[]
+  screenings    ScreeningRecord[]
+  consultations Consultation[]
 }
 
 model Child {
@@ -20,10 +30,19 @@ model Child {
   guardianId       String
   guardian         Guardian        @relation(fields: [guardianId], references: [id])
   name             String
+  birthDate        DateTime?       @db.Date
+  gender           String?         // "MALE" | "FEMALE"
+  healthHistory    String?         // Riwayat kesehatan / alergi
   avatarPreference String?         // Stored as JSON string
-  dailyProgresses  DailyProgress[]
-  foodLogs         FoodLog[]
-  chatSessions     ChatSession[]
+  createdAt        DateTime        @default(now())
+
+  dailyProgresses    DailyProgress[]
+  foodLogs           FoodLog[]
+  detailedFoodLogs   DetailedFoodLog[]
+  growthMeasurements GrowthMeasurement[]
+  screenings         ScreeningRecord[]
+  chatSessions       ChatSession[]
+  reminders          Reminder[]
 }
 
 model DailyProgress {
@@ -44,6 +63,109 @@ model FoodLog {
   date    DateTime @db.Date
   name    String
   tone    String   // balanced, sweet, fried, unknown
+}
+
+model DetailedFoodLog {
+  id           String   @id @default(uuid())
+  childId      String
+  child        Child    @relation(fields: [childId], references: [id])
+  date         DateTime @db.Date
+  mealSlot     String   // "sarapan" | "siang" | "camilan" | "malam"
+  foodName     String
+  portion      String   @default("1 porsi sedang")
+  caloriesKkal Int?
+  carbsGram    Float?
+  proteinGram  Float?
+  fatGram      Float?
+  imageUrl     String?
+  createdAt    DateTime @default(now())
+}
+
+model GrowthMeasurement {
+  id                String   @id @default(uuid())
+  childId           String
+  child             Child    @relation(fields: [childId], references: [id])
+  date              DateTime @db.Date
+  weightKg          Float
+  heightCm          Float
+  bmi               Float?
+  nutritionalStatus String?  // "Gizi Kurang" | "Gizi Baik (Normal)" | "Beresiko Gizi Lebih" | "Obesitas"
+  createdAt         DateTime @default(now())
+}
+
+model ScreeningRecord {
+  id                    String   @id @default(uuid())
+  childId               String
+  child                 Child    @relation(fields: [childId], references: [id])
+  guardianId            String
+  guardian              Guardian @relation(fields: [guardianId], references: [id])
+  date                  DateTime @default(now())
+  ageYears              Int
+  weightKg              Float
+  heightCm              Float
+  familyHistory         Boolean  @default(false)
+  sweetDrinkFrequency   String   @default("kadang") // "jarang" | "kadang" | "sering"
+  physicalActivityHours Float    @default(1.0)
+  riskScore             Int      // 0 - 100 percentage
+  riskCategory          String   // "RENDAH" | "SEDANG" | "TINGGI"
+  recommendations       String   @db.Text // JSON string array of recommendation strings
+  createdAt             DateTime @default(now())
+}
+
+model Reminder {
+  id         String   @id @default(uuid())
+  guardianId String
+  guardian   Guardian @relation(fields: [guardianId], references: [id])
+  childId    String?
+  child      Child?   @relation(fields: [childId], references: [id])
+  title      String   // "Sarapan Pagi", "Minum air putih", "Aktivitas Fisik", "Waktu Tidur"
+  time       String   // "07:00", "10:00", "15:30", "20:00"
+  category   String   @default("umum") // "makan" | "minum" | "aktivitas" | "tidur" | "umum"
+  isEnabled  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}
+
+model Recipe {
+  id           String   @id @default(uuid())
+  title        String   // "Sayur Asem", "Pecel Lele", "Nasi Rawon Daging"
+  category     String   @default("makanan") // "makanan" | "minuman" | "camilan"
+  description  String
+  caloriesKkal Int      @default(150)
+  carbsGram    Float    @default(20)
+  proteinGram  Float    @default(8)
+  fatGram      Float    @default(4)
+  fiberGram    Float    @default(4)
+  sugarGram    Float    @default(2)
+  ingredients  String   @db.Text // JSON string array
+  instructions String   @db.Text // JSON string array
+  imageUrl     String?
+  createdAt    DateTime @default(now())
+}
+
+model EducationArticle {
+  id               String   @id @default(uuid())
+  slug             String   @unique
+  title            String   // "Apa itu Diabetes pada Anak?", "Bahaya Minuman Manis pada Anak"
+  category         String   @default("artikel") // "artikel" | "makanan" | "video"
+  readTimeMinutes  Int      @default(3)
+  summary          String
+  content          String   @db.Text
+  videoUrl         String?
+  imageUrl         String?
+  publishedAt      DateTime @default(now())
+  createdAt        DateTime @default(now())
+}
+
+model Consultation {
+  id             String   @id @default(uuid())
+  guardianId     String
+  guardian       Guardian @relation(fields: [guardianId], references: [id])
+  specialistType String   // "BIDAN" | "AHLI_GIZI" | "DOKTER"
+  specialistName String
+  status         String   @default("PENDING") // "PENDING" | "ACTIVE" | "COMPLETED"
+  topic          String
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
 }
 
 model ChatSession {
@@ -101,4 +223,3 @@ model BotConfig {
   maxTokens    Int      @default(300)
   updatedAt    DateTime @updatedAt
 }
-
