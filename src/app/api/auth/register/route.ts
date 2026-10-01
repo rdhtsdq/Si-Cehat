@@ -6,6 +6,9 @@ import { db } from "@/lib/db";
 const registerSchema = z.object({
   email: z.string().email("Format email tidak valid"),
   password: z.string().min(6, "Password minimal 6 karakter"),
+  motherName: z.string().trim().min(2).max(60).optional(),
+  name: z.string().trim().min(2).max(60).optional(),
+  phone: z.string().trim().max(25).optional(),
   childName: z.string().min(1, "Nama anak harus diisi").max(40).optional(),
 });
 
@@ -19,7 +22,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: { message: errorMsg } }, { status: 400 });
     }
 
-    const { email, password, childName } = result.data;
+    const { email, password, motherName, name, phone, childName } = result.data;
+    const finalMotherName = motherName || name || "Ibu";
 
     const existing = await db.guardian.findUnique({
       where: { email },
@@ -38,6 +42,8 @@ export async function POST(request: Request) {
       data: {
         email,
         passwordHash,
+        name: finalMotherName,
+        phone: phone || null,
         children: {
           create: {
             name: childName?.trim() || "Teman Cehat",
@@ -58,7 +64,9 @@ export async function POST(request: Request) {
       success: true,
       guardian: {
         id: guardian.id,
+        name: guardian.name,
         email: guardian.email,
+        phone: guardian.phone,
         children: guardian.children,
       },
     });
