@@ -1,7 +1,142 @@
 import { db } from "../src/lib/db";
+import bcrypt from "bcryptjs";
 
 async function main() {
-  console.log("Seeding CMS & Figma baseline content...");
+  console.log("Seeding CMS, Admin & Figma baseline content...");
+
+  // 0. Admin Account
+  const existingAdmin = await db.guardian.findUnique({
+    where: { email: "admin@sicehat.id" },
+  });
+
+  if (!existingAdmin) {
+    const adminPasswordHash = await bcrypt.hash("AdminSehat2026!", 10);
+    await db.guardian.create({
+      data: {
+        email: "admin@sicehat.id",
+        passwordHash: adminPasswordHash,
+        name: "Administrator Si-Cehat",
+        role: "ADMIN",
+        phone: "081199887766",
+        education: "S2 Kesehatan Masyarakat",
+        occupation: "Lead Health Administrator",
+        address: "Pusat Riset Si-Cehat, Jakarta",
+      },
+    });
+    console.log("Created default Admin account: admin@sicehat.id / AdminSehat2026!");
+  }
+
+  // Sample Guardian & Child for Surveillance demonstration
+  const existingMother = await db.guardian.findUnique({
+    where: { email: "ibu.rina@example.com" },
+  });
+
+  if (!existingMother) {
+    const motherPasswordHash = await bcrypt.hash("PasswordSehat123!", 10);
+    const mother = await db.guardian.create({
+      data: {
+        email: "ibu.rina@example.com",
+        passwordHash: motherPasswordHash,
+        name: "Ibu Rina Sasmita",
+        role: "GUARDIAN",
+        phone: "081234567890",
+        education: "S1 Pendidikan",
+        occupation: "Guru SD",
+        address: "Jl. Melati Sehat No. 14, Jakarta Selatan",
+        children: {
+          create: {
+            name: "Ahmad Farhan",
+            gender: "MALE",
+            birthDate: new Date("2017-05-10"),
+            healthHistory: "Riwayat diabetes tipe-2 pada kakek pihak ibu",
+          },
+        },
+      },
+      include: { children: true },
+    });
+
+    const child = mother.children[0];
+    if (child) {
+      // Add Screening Record (High Risk)
+      await db.screeningRecord.create({
+        data: {
+          childId: child.id,
+          guardianId: mother.id,
+          ageYears: 9,
+          weightKg: 38.5,
+          heightCm: 128.0,
+          familyHistory: true,
+          sweetDrinkFrequency: "sering",
+          physicalActivityHours: 0.5,
+          riskScore: 78,
+          riskCategory: "TINGGI",
+          recommendations: JSON.stringify([
+            "Batasi asupan minuman manis kemasan maksimal 1 kali per minggu.",
+            "Tingkatkan durasi aktivitas fisik aktif minimal 60 menit sehari.",
+            "Lakukan pemeriksaan gula darah puasa di fasilitas kesehatan.",
+          ]),
+        },
+      });
+
+      // Add Growth Measurement (WHO curve)
+      await db.growthMeasurement.create({
+        data: {
+          childId: child.id,
+          date: new Date(),
+          weightKg: 38.5,
+          heightCm: 128.0,
+          bmi: 23.5,
+          nutritionalStatus: "Obesitas",
+        },
+      });
+
+      // Add Sample Consultations in various states
+      await db.consultation.createMany({
+        data: [
+          {
+            guardianId: mother.id,
+            specialistType: "AHLI_GIZI",
+            specialistName: "Nurul Aini, S.Gz, RD",
+            status: "ACTIVE",
+            topic: "Konsultasi Diet Gula & Hasil Skrining Tinggi",
+            notes: "Farhan terbiasa minum teh manis botolan 2-3 kali sehari dan mengeluh cepat lelah saat berolahraga.",
+          },
+          {
+            guardianId: mother.id,
+            specialistType: "DOKTER_ANAK",
+            specialistName: "dr. Hendra Wijaya, Sp.A",
+            status: "PENDING",
+            topic: "Evaluasi Risiko & Skrining Glukosa Puasa",
+            notes: "Anak sering haus di malam hari dan berat badan stagnan.",
+          },
+          {
+            guardianId: mother.id,
+            specialistType: "BIDAN",
+            specialistName: "Bd. Siti Rahma, S.ST",
+            status: "COMPLETED",
+            topic: "Konseling Pola Asuh & Kebiasaan Minum Air",
+            notes: "Ibu telah menerima panduan Isi Piringku dan target 6 gelas air putih/hari.",
+          },
+        ],
+      });
+
+      // Add Sample Detailed Food Log
+      await db.detailedFoodLog.create({
+        data: {
+          childId: child.id,
+          date: new Date(),
+          mealSlot: "siang",
+          foodName: "Sayur Asem & Tempe Bakar",
+          portion: "1 porsi sedang",
+          caloriesKkal: 220,
+          carbsGram: 22,
+          proteinGram: 10,
+          fatGram: 4,
+        },
+      });
+    }
+    console.log("Created sample mother, child, screening, and consultation data.");
+  }
 
   // 1. Challenges
   const challengeCount = await db.challenge.count();
