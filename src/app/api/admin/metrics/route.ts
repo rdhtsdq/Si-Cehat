@@ -1,24 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
+import { verifyAdmin } from "@/lib/adminAuth";
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: { message: "Harus login." } }, { status: 401 });
+  const authCheck = await verifyAdmin();
+  if (!authCheck.authorized) {
+    return authCheck.response!;
   }
 
-  const user = await db.guardian.findUnique({
-    where: { id: session.user.id },
-    select: { role: true },
-  });
-
-  if (user?.role !== "ADMIN") {
-    return NextResponse.json(
-      { error: { message: "Akses ditolak. Halaman ini khusus untuk Administrator." } },
-      { status: 403 }
-    );
-  }
   try {
     const [
       totalGuardians,
@@ -28,8 +17,20 @@ export async function GET() {
       totalChatSessions,
       totalChatMessages,
       recentProgress,
+      // Figma Extensions Metrics
+      totalScreenings,
+      highRiskCount,
+      mediumRiskCount,
+      lowRiskCount,
+      recentHighRiskScreenings,
+      totalGrowthMeasurements,
+      growthNutritionalStats,
+      foodLogAggregates,
+      consultationStats,
+      totalRecipes,
+      totalArticles,
     ] = await Promise.all([
-      db.guardian.count(),
+      db.guardian.count({ where: { role: "GUARDIAN" } }),
       db.child.count(),
       db.dailyProgress.aggregate({
         _sum: {
@@ -45,14 +46,12 @@ export async function GET() {
       }),
       db.foodLog.groupBy({
         by: ["tone"],
-        _count: {
-          tone: true,
-        },
+        _count: { tone: true },
       }),
       db.chatSession.count(),
       db.chatMessage.count(),
       db.dailyProgress.findMany({
-        take: 10,
+        take: 8,
         orderBy: { date: "desc" },
         include: {
           child: {
@@ -60,6 +59,50 @@ export async function GET() {
           },
         },
       }),
+      // Screening aggregations
+      db.screeningRecord.count(),
+      db.screeningRecord.count({ where: { riskCategory: "TINGGI" } }),
+      db.screeningRecord.count({ where: { riskCategory: "SEDANG" } }),
+      db.screeningRecord.count({ where: { riskCategory: "RENDAH" } }),
+      db.screeningRecord.findMany({
+        where: { riskCategory: "TINGGI" },
+        take: 6,
+        orderBy: { createdAt: "desc" },
+        include: {
+          child: {
+            select: {
+              name: true,
+              gender: true,
+            },
+          },
+          guardian: {
+            select: {
+              name: true,
+              phone: true,
+              email: true,
+            },
+          },
+        },
+      }),
+      // Growth measurements
+      db.growthMeasurement.count(),
+      db.growthMeasurement.groupBy({
+        by: ["nutritionalStatus"],
+        _count: { nutritionalStatus: true },
+      }),
+      // Detailed Food Logs
+      db.detailedFoodLog.aggregate({
+        _count: { _all: true },
+        _avg: { caloriesKkal: true, carbsGram: true },
+      }),
+      // Consultations
+      db.consultation.groupBy({
+        by: ["status"],
+        _count: { status: true },
+      }),
+      // Content items
+      db.recipe.count(),
+      db.educationArticle.count(),
     ]);
 
     const foodToneDistribution = {
@@ -75,6 +118,33 @@ export async function GET() {
       }
     });
 
+    // Format growth status distribution
+    const growthDistribution: Record<string, number> = {
+      "Gizi Baik (Normal)": 0,
+      "Berisiko Gizi Lebih": 0,
+      "Obesitas": 0,
+      "Gizi Kurang": 0,
+    };
+    growthNutritionalStats.forEach((g) => {
+      if (g.nutritionalStatus) {
+        growthDistribution[g.nutritionalStatus] = g._count.nutritionalStatus;
+      }
+    });
+
+    // Format consultation distribution
+    const consultations = {
+      pending: 0,
+      active: 0,
+      completed: 0,
+      total: 0,
+    };
+    consultationStats.forEach((c) => {
+      if (c.status === "PENDING") consultations.pending = c._count.status;
+      if (c.status === "ACTIVE") consultations.active = c._count.status;
+      if (c.status === "COMPLETED") consultations.completed = c._count.status;
+      consultations.total += c._count.status;
+    });
+
     return NextResponse.json({
       metrics: {
         totalGuardians,
@@ -88,7 +158,47 @@ export async function GET() {
         totalChatSessions,
         totalChatMessages,
         foodToneDistribution,
+        // Clinical & Figma extensions
+        screening: {
+          total: totalScreenings,
+          highRiskCount,
+          mediumRiskCount,
+          lowRiskCount,
+          highRiskPercentage: totalScreenings > 0 ? Math.round((highRiskCount / totalScreenings) * 100) : 0,
+        },
+        growth: {
+          total: totalGrowthMeasurements,
+          distribution: growthDistribution,
+        },
+        nutrition: {
+          totalLogs: foodLogAggregates._count._all || 0,
+          averageCalories: Math.round(foodLogAggregates._avg.caloriesKkal || 0),
+          averageCarbsGram: Number((foodLogAggregates._avg.carbsGram || 0).toFixed(1)),
+        },
+        consultations,
+        content: {
+          totalRecipes,
+          totalArticles,
+        },
       },
+      highRiskAlerts: recentHighRiskScreenings.map((s) => {
+        const heightM = s.heightCm / 100;
+        const bmiCalc = heightM > 0 ? Number((s.weightKg / (heightM * heightM)).toFixed(1)) : 0;
+        return {
+          id: s.id,
+          childName: s.child.name,
+          childAge: s.ageYears,
+          childGender: s.child.gender || "-",
+          guardianName: s.guardian.name || "Ibu",
+          guardianPhone: s.guardian.phone || "-",
+          riskScore: s.riskScore,
+          riskCategory: s.riskCategory,
+          bmi: bmiCalc,
+          familyHistory: s.familyHistory,
+          sweetDrinkFrequency: s.sweetDrinkFrequency,
+          date: s.createdAt.toISOString().slice(0, 10),
+        };
+      }),
       recentActivity: recentProgress.map((p) => ({
         id: p.id,
         childName: p.child.name,
