@@ -19,6 +19,7 @@
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",
     "drizzle-orm": "^0.45.4",
+    "framer-motion": "12.23.12",
     "hono": "^4.13.13",
     "motion": "12.23.12",
     "motion-dom": "12.23.12",
@@ -41,6 +42,7 @@
     "vite": "^8.3.4"
   },
   "overrides": {
+    "framer-motion": "12.23.12",
     "motion-dom": "12.23.12",
     "motion-utils": "12.23.6"
   }
