@@ -215,11 +215,19 @@ System prompt membantu mengarahkan respons, tetapi bukan satu-satunya batas keam
 | Command | Fungsi |
 | --- | --- |
 | `bun install` | Memasang dependencies. |
+| `bun run setup` | Menyiapkan environment, database, dan dependencies (`setup.sh`). |
 | `bun run dev` | Menjalankan development server. |
-| `bun run lint` | Menjalankan ESLint. |
+| `bun run lint` | Menjalankan TypeScript/linter check tanpa emit. |
 | `bun run typecheck` | Menjalankan TypeScript tanpa emit. |
-| `bun run build` | Membuat production build. |
-| `bun run start` | Menjalankan production build. |
+| `bun run build` | Menjalankan production build script (`build.sh`). |
+| `bun run build:client` | Membuat build client Vite saja (`vite build`). |
+| `bun run start` | Menjalankan production server. |
+
+Opsi tambahan pada `./build.sh`:
+- `./build.sh --skip-typecheck` (melewati langkah typecheck untuk build cepat)
+- `./build.sh --clean` (membersihkan folder `dist/` sebelum build)
+- `./build.sh --with-migrate` (sinkronisasi schema database sebelum build)
+- `./build.sh --standalone` (membundel backend Hono ke `dist/server.js`)
 
 Quality gate saat ini:
 
