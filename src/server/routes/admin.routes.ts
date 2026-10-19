@@ -1,9 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { and, asc, avg, count, desc, eq, ilike, or, sum } from "drizzle-orm";
+import { and, asc, avg, count, desc, eq, ilike, inArray, or, sql, sum } from "drizzle-orm";
 import crypto from "node:crypto";
 import { drizzleDb } from "../db";
 import {
+  posyandus,
   guardians,
   children,
   dailyProgresses,
@@ -21,7 +22,7 @@ import {
   recommendedMenus,
   botConfigs,
 } from "../db/schema";
-import { verifyAdmin } from "../middleware/auth";
+import { verifyAdmin, verifySuperAdmin } from "../middleware/auth";
 import { getResolvedBotConfig, maskApiKey } from "../services/bot-config";
 
 export const adminRoutes = new Hono();
@@ -31,7 +32,70 @@ adminRoutes.get("/metrics", async (c) => {
   const authCheck = await verifyAdmin(c);
   if (!authCheck.authorized) return authCheck.response;
 
+  // Multi-tenancy scoping:
+  // Admin Posyandu is strictly scoped to their own posyanduId.
+  // Super Admin (Pusat) can view all or filter by ?posyanduId=...
+  const effectivePosyanduId = authCheck.isPosyandu
+    ? authCheck.posyanduId
+    : (c.req.query("posyanduId") || "").trim() || null;
+
   try {
+    let scopedChildIds: string[] | null = null;
+    let scopedGuardianIds: string[] | null = null;
+    let activePosyandu: any = null;
+
+    if (effectivePosyanduId) {
+      const [posyanduRow, childRows, guardianRows] = await Promise.all([
+        drizzleDb
+          .select()
+          .from(posyandus)
+          .where(eq(posyandus.id, effectivePosyanduId))
+          .limit(1),
+        drizzleDb
+          .select({ id: children.id })
+          .from(children)
+          .where(eq(children.posyanduId, effectivePosyanduId)),
+        drizzleDb
+          .select({ id: guardians.id })
+          .from(guardians)
+          .where(
+            and(
+              eq(guardians.role, "GUARDIAN"),
+              eq(guardians.posyanduId, effectivePosyanduId)
+            )
+          ),
+      ]);
+      activePosyandu = posyanduRow[0] || null;
+      scopedChildIds = childRows.map((r) => r.id);
+      scopedGuardianIds = guardianRows.map((r) => r.id);
+    }
+
+    const hasChildren =
+      !effectivePosyanduId || (scopedChildIds && scopedChildIds.length > 0);
+    const hasGuardians =
+      !effectivePosyanduId || (scopedGuardianIds && scopedGuardianIds.length > 0);
+
+    const guardianFilter = effectivePosyanduId
+      ? and(
+          eq(guardians.role, "GUARDIAN"),
+          eq(guardians.posyanduId, effectivePosyanduId)
+        )
+      : eq(guardians.role, "GUARDIAN");
+
+    const childrenFilter = effectivePosyanduId
+      ? eq(children.posyanduId, effectivePosyanduId)
+      : undefined;
+
+    const childWhere = (column: any) =>
+      effectivePosyanduId && scopedChildIds && scopedChildIds.length > 0
+        ? inArray(column, scopedChildIds)
+        : undefined;
+
+    const guardianWhere = (column: any) =>
+      effectivePosyanduId && scopedGuardianIds && scopedGuardianIds.length > 0
+        ? inArray(column, scopedGuardianIds)
+        : undefined;
+
     const [
       [guardiansCount],
       [childrenCount],
@@ -52,87 +116,171 @@ adminRoutes.get("/metrics", async (c) => {
       [recipesCount],
       [articlesCount],
     ] = await Promise.all([
-      drizzleDb
-        .select({ total: count() })
-        .from(guardians)
-        .where(eq(guardians.role, "GUARDIAN")),
-      drizzleDb.select({ total: count() }).from(children),
-      drizzleDb
-        .select({
-          sumWater: sum(dailyProgresses.waterGlasses),
-          sumActivity: sum(dailyProgresses.activityMinutes),
-          sumXp: sum(dailyProgresses.xpEarned),
-          avgWater: avg(dailyProgresses.waterGlasses),
-          avgActivity: avg(dailyProgresses.activityMinutes),
-          avgStreak: avg(dailyProgresses.streak),
-        })
-        .from(dailyProgresses),
-      drizzleDb
-        .select({
-          tone: foodLogs.tone,
-          count: count(),
-        })
-        .from(foodLogs)
-        .groupBy(foodLogs.tone),
-      drizzleDb.select({ total: count() }).from(chatSessions),
-      drizzleDb.select({ total: count() }).from(chatMessages),
-      drizzleDb.query.dailyProgresses.findMany({
-        limit: 8,
-        orderBy: [desc(dailyProgresses.date)],
-        with: {
-          child: {
-            columns: { name: true },
-          },
-        },
-      }),
-      drizzleDb.select({ total: count() }).from(screeningRecords),
-      drizzleDb
-        .select({ total: count() })
-        .from(screeningRecords)
-        .where(eq(screeningRecords.riskCategory, "TINGGI")),
-      drizzleDb
-        .select({ total: count() })
-        .from(screeningRecords)
-        .where(eq(screeningRecords.riskCategory, "SEDANG")),
-      drizzleDb
-        .select({ total: count() })
-        .from(screeningRecords)
-        .where(eq(screeningRecords.riskCategory, "RENDAH")),
-      drizzleDb.query.screeningRecords.findMany({
-        where: eq(screeningRecords.riskCategory, "TINGGI"),
-        limit: 6,
-        orderBy: [desc(screeningRecords.createdAt)],
-        with: {
-          child: {
-            columns: { name: true, gender: true },
-          },
-          guardian: {
-            columns: { name: true, phone: true, email: true },
-          },
-        },
-      }),
-      drizzleDb.select({ total: count() }).from(growthMeasurements),
-      drizzleDb
-        .select({
-          nutritionalStatus: growthMeasurements.nutritionalStatus,
-          count: count(),
-        })
-        .from(growthMeasurements)
-        .groupBy(growthMeasurements.nutritionalStatus),
-      drizzleDb
-        .select({
-          total: count(),
-          avgCalories: avg(detailedFoodLogs.caloriesKkal),
-          avgCarbs: avg(detailedFoodLogs.carbsGram),
-        })
-        .from(detailedFoodLogs),
-      drizzleDb
-        .select({
-          status: consultations.status,
-          count: count(),
-        })
-        .from(consultations)
-        .groupBy(consultations.status),
+      drizzleDb.select({ total: count() }).from(guardians).where(guardianFilter),
+      childrenFilter
+        ? drizzleDb.select({ total: count() }).from(children).where(childrenFilter)
+        : drizzleDb.select({ total: count() }).from(children),
+      hasChildren
+        ? drizzleDb
+            .select({
+              sumWater: sum(dailyProgresses.waterGlasses),
+              sumActivity: sum(dailyProgresses.activityMinutes),
+              sumXp: sum(dailyProgresses.xpEarned),
+              avgWater: avg(dailyProgresses.waterGlasses),
+              avgActivity: avg(dailyProgresses.activityMinutes),
+              avgStreak: avg(dailyProgresses.streak),
+            })
+            .from(dailyProgresses)
+            .where(childWhere(dailyProgresses.childId))
+        : Promise.resolve([
+            {
+              sumWater: 0,
+              sumActivity: 0,
+              sumXp: 0,
+              avgWater: 0,
+              avgActivity: 0,
+              avgStreak: 0,
+            },
+          ]),
+      hasChildren
+        ? drizzleDb
+            .select({
+              tone: foodLogs.tone,
+              count: count(),
+            })
+            .from(foodLogs)
+            .where(childWhere(foodLogs.childId))
+            .groupBy(foodLogs.tone)
+        : Promise.resolve([]),
+      hasChildren
+        ? drizzleDb
+            .select({ total: count() })
+            .from(chatSessions)
+            .where(childWhere(chatSessions.childId))
+        : Promise.resolve([{ total: 0 }]),
+      hasChildren
+        ? drizzleDb
+            .select({ total: count() })
+            .from(chatMessages)
+            .innerJoin(
+              chatSessions,
+              eq(chatMessages.sessionId, chatSessions.id)
+            )
+            .where(childWhere(chatSessions.childId))
+        : Promise.resolve([{ total: 0 }]),
+      hasChildren
+        ? drizzleDb.query.dailyProgresses.findMany({
+            where: childWhere(dailyProgresses.childId),
+            limit: 8,
+            orderBy: [desc(dailyProgresses.date)],
+            with: {
+              child: {
+                columns: { name: true },
+              },
+            },
+          })
+        : Promise.resolve([]),
+      hasChildren
+        ? drizzleDb
+            .select({ total: count() })
+            .from(screeningRecords)
+            .where(childWhere(screeningRecords.childId))
+        : Promise.resolve([{ total: 0 }]),
+      hasChildren
+        ? drizzleDb
+            .select({ total: count() })
+            .from(screeningRecords)
+            .where(
+              effectivePosyanduId
+                ? and(
+                    eq(screeningRecords.riskCategory, "TINGGI"),
+                    inArray(screeningRecords.childId, scopedChildIds!)
+                  )
+                : eq(screeningRecords.riskCategory, "TINGGI")
+            )
+        : Promise.resolve([{ total: 0 }]),
+      hasChildren
+        ? drizzleDb
+            .select({ total: count() })
+            .from(screeningRecords)
+            .where(
+              effectivePosyanduId
+                ? and(
+                    eq(screeningRecords.riskCategory, "SEDANG"),
+                    inArray(screeningRecords.childId, scopedChildIds!)
+                  )
+                : eq(screeningRecords.riskCategory, "SEDANG")
+            )
+        : Promise.resolve([{ total: 0 }]),
+      hasChildren
+        ? drizzleDb
+            .select({ total: count() })
+            .from(screeningRecords)
+            .where(
+              effectivePosyanduId
+                ? and(
+                    eq(screeningRecords.riskCategory, "RENDAH"),
+                    inArray(screeningRecords.childId, scopedChildIds!)
+                  )
+                : eq(screeningRecords.riskCategory, "RENDAH")
+            )
+        : Promise.resolve([{ total: 0 }]),
+      hasChildren
+        ? drizzleDb.query.screeningRecords.findMany({
+            where: effectivePosyanduId
+              ? and(
+                  eq(screeningRecords.riskCategory, "TINGGI"),
+                  inArray(screeningRecords.childId, scopedChildIds!)
+                )
+              : eq(screeningRecords.riskCategory, "TINGGI"),
+            limit: 6,
+            orderBy: [desc(screeningRecords.createdAt)],
+            with: {
+              child: {
+                columns: { name: true, gender: true },
+              },
+              guardian: {
+                columns: { name: true, phone: true, email: true },
+              },
+            },
+          })
+        : Promise.resolve([]),
+      hasChildren
+        ? drizzleDb
+            .select({ total: count() })
+            .from(growthMeasurements)
+            .where(childWhere(growthMeasurements.childId))
+        : Promise.resolve([{ total: 0 }]),
+      hasChildren
+        ? drizzleDb
+            .select({
+              nutritionalStatus: growthMeasurements.nutritionalStatus,
+              count: count(),
+            })
+            .from(growthMeasurements)
+            .where(childWhere(growthMeasurements.childId))
+            .groupBy(growthMeasurements.nutritionalStatus)
+        : Promise.resolve([]),
+      hasChildren
+        ? drizzleDb
+            .select({
+              total: count(),
+              avgCalories: avg(detailedFoodLogs.caloriesKkal),
+              avgCarbs: avg(detailedFoodLogs.carbsGram),
+            })
+            .from(detailedFoodLogs)
+            .where(childWhere(detailedFoodLogs.childId))
+        : Promise.resolve([{ total: 0, avgCalories: 0, avgCarbs: 0 }]),
+      hasGuardians
+        ? drizzleDb
+            .select({
+              status: consultations.status,
+              count: count(),
+            })
+            .from(consultations)
+            .where(guardianWhere(consultations.guardianId))
+            .groupBy(consultations.status)
+        : Promise.resolve([]),
       drizzleDb.select({ total: count() }).from(recipes),
       drizzleDb.select({ total: count() }).from(educationArticles),
     ]);
@@ -256,6 +404,12 @@ adminRoutes.get("/metrics", async (c) => {
         xp: p.xpEarned,
         streak: p.streak,
       })),
+      scope: {
+        effectivePosyanduId,
+        posyandu: activePosyandu,
+        isScoped: Boolean(effectivePosyanduId),
+        userRole: authCheck.user.role,
+      },
       system: {
         aiModel: process.env.AI_MODEL || "gpt-4o-mini",
         databaseStatus: "connected",
@@ -271,15 +425,403 @@ adminRoutes.get("/metrics", async (c) => {
   }
 });
 
+// =========================================================================
+// MASTER DATA POSYANDU & ADMIN POSYANDU MANAGEMENT
+// =========================================================================
+
+adminRoutes.get("/posyandus", async (c) => {
+  const authCheck = await verifyAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  try {
+    const whereExpr =
+      authCheck.isPosyandu && authCheck.posyanduId
+        ? eq(posyandus.id, authCheck.posyanduId)
+        : undefined;
+
+    const allPosyandus = await drizzleDb
+      .select()
+      .from(posyandus)
+      .where(whereExpr)
+      .orderBy(asc(posyandus.name));
+
+    const result = await Promise.all(
+      allPosyandus.map(async (p) => {
+        const [[cCount], [gCount], posyanduAdmins] = await Promise.all([
+          drizzleDb
+            .select({ total: count() })
+            .from(children)
+            .where(eq(children.posyanduId, p.id)),
+          drizzleDb
+            .select({ total: count() })
+            .from(guardians)
+            .where(
+              and(
+                eq(guardians.role, "GUARDIAN"),
+                eq(guardians.posyanduId, p.id)
+              )
+            ),
+          drizzleDb
+            .select({
+              id: guardians.id,
+              name: guardians.name,
+              email: guardians.email,
+              phone: guardians.phone,
+              createdAt: guardians.createdAt,
+            })
+            .from(guardians)
+            .where(
+              and(
+                eq(guardians.role, "POSYANDU"),
+                eq(guardians.posyanduId, p.id)
+              )
+            ),
+        ]);
+
+        return {
+          ...p,
+          childrenCount: cCount?.total || 0,
+          guardiansCount: gCount?.total || 0,
+          admins: posyanduAdmins,
+        };
+      })
+    );
+
+    return c.json({ posyandus: result });
+  } catch (error) {
+    console.error("Get posyandus error:", error);
+    return c.json(
+      { error: { message: "Gagal memuat master data Posyandu." } },
+      500
+    );
+  }
+});
+
+const posyanduCreateSchema = z.object({
+  name: z.string().trim().min(2, "Nama posyandu minimal 2 karakter"),
+  code: z
+    .string()
+    .trim()
+    .min(2, "Kode posyandu minimal 2 karakter")
+    .toUpperCase(),
+  rw: z.string().trim().optional(),
+  rt: z.string().trim().optional(),
+  kelurahan: z.string().trim().optional(),
+  kecamatan: z.string().trim().optional(),
+  city: z.string().trim().optional(),
+  address: z.string().trim().optional(),
+  contactPhone: z.string().trim().optional(),
+  leaderName: z.string().trim().optional(),
+  adminEmail: z.string().trim().toLowerCase().email().optional(),
+  adminPassword: z.string().min(6).optional(),
+  adminName: z.string().trim().optional(),
+  adminPhone: z.string().trim().optional(),
+});
+
+adminRoutes.post("/posyandus", async (c) => {
+  const authCheck = await verifySuperAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  try {
+    const raw = await c.req.json().catch(() => null);
+    const parsed = posyanduCreateSchema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: {
+            message:
+              parsed.error.issues[0]?.message || "Input posyandu tidak valid.",
+          },
+        },
+        400
+      );
+    }
+
+    const {
+      name,
+      code,
+      rw,
+      rt,
+      kelurahan,
+      kecamatan,
+      city,
+      address,
+      contactPhone,
+      leaderName,
+      adminEmail,
+      adminPassword,
+      adminName,
+      adminPhone,
+    } = parsed.data;
+
+    const [existing] = await drizzleDb
+      .select({ id: posyandus.id })
+      .from(posyandus)
+      .where(eq(posyandus.code, code))
+      .limit(1);
+
+    if (existing) {
+      return c.json(
+        {
+          error: {
+            message: "Kode Posyandu sudah digunakan. Gunakan kode lain.",
+          },
+        },
+        409
+      );
+    }
+
+    const [created] = await drizzleDb
+      .insert(posyandus)
+      .values({
+        name,
+        code,
+        rw: rw || null,
+        rt: rt || null,
+        kelurahan: kelurahan || null,
+        kecamatan: kecamatan || null,
+        city: city || "Jakarta Selatan",
+        address: address || null,
+        contactPhone: contactPhone || null,
+        leaderName: leaderName || null,
+      })
+      .returning();
+
+    let createdAdmin = null;
+    if (adminEmail && adminPassword) {
+      const [emailCheck] = await drizzleDb
+        .select({ id: guardians.id })
+        .from(guardians)
+        .where(eq(sql`lower(${guardians.email})`, adminEmail))
+        .limit(1);
+
+      if (!emailCheck) {
+        const passwordHash = await Bun.password.hash(adminPassword, {
+          algorithm: "bcrypt",
+          cost: 10,
+        });
+
+        const [adminUser] = await drizzleDb
+          .insert(guardians)
+          .values({
+            email: adminEmail,
+            passwordHash,
+            name: adminName || `Kader (${name})`,
+            role: "POSYANDU",
+            posyanduId: created.id,
+            phone: adminPhone || contactPhone || null,
+            address: address || null,
+            occupation: "Kader Posyandu",
+          })
+          .returning({
+            id: guardians.id,
+            email: guardians.email,
+            name: guardians.name,
+          });
+        createdAdmin = adminUser;
+      }
+    }
+
+    return c.json({
+      success: true,
+      posyandu: created,
+      admin: createdAdmin,
+    });
+  } catch (error) {
+    console.error("Create posyandu error:", error);
+    return c.json({ error: { message: "Gagal membuat posyandu baru." } }, 500);
+  }
+});
+
+adminRoutes.put("/posyandus/:id", async (c) => {
+  const authCheck = await verifySuperAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  const id = c.req.param("id");
+  try {
+    const raw = await c.req.json().catch(() => null);
+    const parsed = posyanduCreateSchema.partial().safeParse(raw);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: {
+            message:
+              parsed.error.issues[0]?.message || "Input pembaruan tidak valid.",
+          },
+        },
+        400
+      );
+    }
+
+    const [existing] = await drizzleDb
+      .select()
+      .from(posyandus)
+      .where(eq(posyandus.id, id))
+      .limit(1);
+    if (!existing) {
+      return c.json({ error: { message: "Posyandu tidak ditemukan." } }, 404);
+    }
+
+    const [updated] = await drizzleDb
+      .update(posyandus)
+      .set({
+        ...parsed.data,
+        updatedAt: new Date(),
+      })
+      .where(eq(posyandus.id, id))
+      .returning();
+
+    return c.json({ success: true, posyandu: updated });
+  } catch (error) {
+    console.error("Update posyandu error:", error);
+    return c.json({ error: { message: "Gagal memperbarui posyandu." } }, 500);
+  }
+});
+
+adminRoutes.delete("/posyandus/:id", async (c) => {
+  const authCheck = await verifySuperAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  const id = c.req.param("id");
+  try {
+    await drizzleDb
+      .update(children)
+      .set({ posyanduId: null })
+      .where(eq(children.posyanduId, id));
+    await drizzleDb
+      .update(guardians)
+      .set({ posyanduId: null })
+      .where(eq(guardians.posyanduId, id));
+
+    await drizzleDb.delete(posyandus).where(eq(posyandus.id, id));
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Delete posyandu error:", error);
+    return c.json({ error: { message: "Gagal menghapus posyandu." } }, 500);
+  }
+});
+
+adminRoutes.post("/posyandus/:id/admins", async (c) => {
+  const authCheck = await verifySuperAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  const posyanduId = c.req.param("id");
+  try {
+    const raw = await c.req.json().catch(() => null);
+    const schema = z.object({
+      email: z.string().trim().toLowerCase().email(),
+      password: z.string().min(6, "Password minimal 6 karakter"),
+      name: z.string().trim().min(2, "Nama petugas minimal 2 karakter"),
+      phone: z.string().trim().optional(),
+    });
+
+    const parsed = schema.safeParse(raw);
+    if (!parsed.success) {
+      return c.json(
+        {
+          error: {
+            message:
+              parsed.error.issues[0]?.message || "Input akun admin tidak valid.",
+          },
+        },
+        400
+      );
+    }
+
+    const [posyandu] = await drizzleDb
+      .select()
+      .from(posyandus)
+      .where(eq(posyandus.id, posyanduId))
+      .limit(1);
+    if (!posyandu) {
+      return c.json({ error: { message: "Posyandu tidak ditemukan." } }, 404);
+    }
+
+    const [existingEmail] = await drizzleDb
+      .select({ id: guardians.id })
+      .from(guardians)
+      .where(eq(sql`lower(${guardians.email})`, parsed.data.email))
+      .limit(1);
+
+    if (existingEmail) {
+      return c.json(
+        {
+          error: {
+            message: "Email sudah terdaftar di sistem. Gunakan email lain.",
+          },
+        },
+        409
+      );
+    }
+
+    const passwordHash = await Bun.password.hash(parsed.data.password, {
+      algorithm: "bcrypt",
+      cost: 10,
+    });
+
+    const [createdAdmin] = await drizzleDb
+      .insert(guardians)
+      .values({
+        email: parsed.data.email,
+        passwordHash,
+        name: parsed.data.name,
+        role: "POSYANDU",
+        posyanduId,
+        phone: parsed.data.phone || posyandu.contactPhone || null,
+        occupation: "Kader Posyandu",
+      })
+      .returning({
+        id: guardians.id,
+        email: guardians.email,
+        name: guardians.name,
+        role: guardians.role,
+        posyanduId: guardians.posyanduId,
+      });
+
+    return c.json({ success: true, admin: createdAdmin });
+  } catch (error) {
+    console.error("Create posyandu admin error:", error);
+    return c.json(
+      { error: { message: "Gagal membuat akun Admin Posyandu." } },
+      500
+    );
+  }
+});
+
 // 2. GET /api/admin/export
 adminRoutes.get("/export", async (c) => {
   const authCheck = await verifyAdmin(c);
   if (!authCheck.authorized) return authCheck.response;
 
   const format = c.req.query("format") === "json" ? "json" : "csv";
+  const effectivePosyanduId = authCheck.isPosyandu
+    ? authCheck.posyanduId
+    : (c.req.query("posyanduId") || "").trim() || null;
 
   try {
+    let whereExpr = undefined;
+    if (effectivePosyanduId) {
+      const childRows = await drizzleDb
+        .select({ id: children.id })
+        .from(children)
+        .where(eq(children.posyanduId, effectivePosyanduId));
+      const childIds = childRows.map((r) => r.id);
+      if (childIds.length === 0) {
+        if (format === "json") return c.json({ count: 0, data: [] });
+        return c.text(
+          "participant_id,date,water_glasses,activity_minutes,xp_earned,streak,food_entries_count,chat_messages_count\n",
+          200,
+          {
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": `attachment; filename="sicehat-export-${new Date().toISOString().slice(0, 10)}.csv"`,
+          }
+        );
+      }
+      whereExpr = inArray(dailyProgresses.childId, childIds);
+    }
+
     const records = await drizzleDb.query.dailyProgresses.findMany({
+      where: whereExpr,
       orderBy: [asc(dailyProgresses.date)],
       with: {
         child: {
@@ -967,24 +1509,33 @@ adminRoutes.get("/families", async (c) => {
   if (!authCheck.authorized) return authCheck.response;
 
   const search = (c.req.query("search") || "").trim();
+  const effectivePosyanduId = authCheck.isPosyandu
+    ? authCheck.posyanduId
+    : (c.req.query("posyanduId") || "").trim() || null;
 
   try {
-    const whereExpr = search
-      ? and(
-          eq(guardians.role, "GUARDIAN"),
-          or(
-            ilike(guardians.name, `%${search}%`),
-            ilike(guardians.email, `%${search}%`),
-            ilike(guardians.phone, `%${search}%`)
-          )
-        )
-      : eq(guardians.role, "GUARDIAN");
+    const conditions = [eq(guardians.role, "GUARDIAN")];
+    if (effectivePosyanduId) {
+      conditions.push(eq(guardians.posyanduId, effectivePosyanduId));
+    }
+    if (search) {
+      conditions.push(
+        or(
+          ilike(guardians.name, `%${search}%`),
+          ilike(guardians.email, `%${search}%`),
+          ilike(guardians.phone, `%${search}%`)
+        )!
+      );
+    }
+
+    const whereExpr = and(...conditions);
 
     const families = await drizzleDb.query.guardians.findMany({
       where: whereExpr,
       orderBy: [desc(guardians.createdAt)],
       columns: {
         id: true,
+        posyanduId: true,
         name: true,
         email: true,
         phone: true,
@@ -994,9 +1545,17 @@ adminRoutes.get("/families", async (c) => {
         createdAt: true,
       },
       with: {
+        posyandu: {
+          columns: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
         children: {
           columns: {
             id: true,
+            posyanduId: true,
             name: true,
             gender: true,
             birthDate: true,
@@ -1037,18 +1596,82 @@ adminRoutes.get("/families", async (c) => {
   }
 });
 
+adminRoutes.patch("/families/:guardianId/posyandu", async (c) => {
+  const authCheck = await verifyAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  const guardianId = c.req.param("guardianId");
+  const raw = await c.req.json().catch(() => null);
+  const targetPosyanduId = raw?.posyanduId || null;
+
+  if (authCheck.isPosyandu && targetPosyanduId !== authCheck.posyanduId) {
+    return c.json(
+      {
+        error: {
+          message:
+            "Admin Posyandu hanya dapat menetapkan keluarga ke wilayah Posyandu sendiri.",
+        },
+      },
+      403
+    );
+  }
+
+  try {
+    await drizzleDb
+      .update(guardians)
+      .set({ posyanduId: targetPosyanduId })
+      .where(eq(guardians.id, guardianId));
+
+    await drizzleDb
+      .update(children)
+      .set({ posyanduId: targetPosyanduId })
+      .where(eq(children.guardianId, guardianId));
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Update family posyandu error:", error);
+    return c.json(
+      { error: { message: "Gagal memperbarui wilayah Posyandu keluarga." } },
+      500
+    );
+  }
+});
+
 // 7. GET /api/admin/consultations & PATCH /api/admin/consultations/:id
 adminRoutes.get("/consultations", async (c) => {
   const authCheck = await verifyAdmin(c);
   if (!authCheck.authorized) return authCheck.response;
 
   const status = c.req.query("status");
+  const effectivePosyanduId = authCheck.isPosyandu
+    ? authCheck.posyanduId
+    : (c.req.query("posyanduId") || "").trim() || null;
 
   try {
-    const whereExpr =
+    let guardianFilter = undefined;
+    if (effectivePosyanduId) {
+      const guardianRows = await drizzleDb
+        .select({ id: guardians.id })
+        .from(guardians)
+        .where(eq(guardians.posyanduId, effectivePosyanduId));
+      const guardianIds = guardianRows.map((g) => g.id);
+      if (guardianIds.length === 0) {
+        return c.json({ consultations: [] });
+      }
+      guardianFilter = inArray(consultations.guardianId, guardianIds);
+    }
+
+    const statusFilter =
       status && status !== "ALL"
         ? eq(consultations.status, status.toUpperCase())
         : undefined;
+
+    const conditions = [];
+    if (guardianFilter) conditions.push(guardianFilter);
+    if (statusFilter) conditions.push(statusFilter);
+
+    const whereExpr =
+      conditions.length > 0 ? and(...conditions) : undefined;
 
     const list = await drizzleDb.query.consultations.findMany({
       where: whereExpr,
@@ -1057,6 +1680,7 @@ adminRoutes.get("/consultations", async (c) => {
         guardian: {
           columns: {
             id: true,
+            posyanduId: true,
             name: true,
             email: true,
             phone: true,
@@ -1065,6 +1689,13 @@ adminRoutes.get("/consultations", async (c) => {
             address: true,
           },
           with: {
+            posyandu: {
+              columns: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
             children: {
               columns: {
                 id: true,

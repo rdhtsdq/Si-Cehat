@@ -1,6 +1,7 @@
 import { count, eq } from "drizzle-orm";
 import { drizzleDb, pgSql } from "./index";
 import {
+  posyandus,
   guardians,
   children,
   screeningRecords,
@@ -15,9 +16,62 @@ import {
 } from "./schema";
 
 async function main() {
-  console.log("Seeding CMS, Admin & Figma baseline content (Drizzle ORM)...");
+  console.log("Seeding CMS, Admin, Posyandu & Baseline Content (Drizzle ORM)...");
 
-  // 0. Admin Account
+  // 0. Master Data: Posyandu
+  let [melatiPosyandu] = await drizzleDb
+    .select()
+    .from(posyandus)
+    .where(eq(posyandus.code, "POS-MELATI-01"))
+    .limit(1);
+
+  if (!melatiPosyandu) {
+    const [inserted] = await drizzleDb
+      .insert(posyandus)
+      .values({
+        name: "Posyandu Melati 01",
+        code: "POS-MELATI-01",
+        rw: "RW 03",
+        rt: "RT 05",
+        kelurahan: "Tebet Barat",
+        kecamatan: "Tebet",
+        city: "Jakarta Selatan",
+        address: "Balai Warga RW 03, Jl. Tebet Barat Dalam Raya No. 12",
+        contactPhone: "081233445566",
+        leaderName: "Bdn. Siti Rahmawati, S.Tr.Keb",
+      })
+      .returning();
+    melatiPosyandu = inserted;
+    console.log("Created master data: Posyandu Melati 01 (POS-MELATI-01)");
+  }
+
+  let [mawarPosyandu] = await drizzleDb
+    .select()
+    .from(posyandus)
+    .where(eq(posyandus.code, "POS-MAWAR-02"))
+    .limit(1);
+
+  if (!mawarPosyandu) {
+    const [inserted] = await drizzleDb
+      .insert(posyandus)
+      .values({
+        name: "Posyandu Mawar 02",
+        code: "POS-MAWAR-02",
+        rw: "RW 05",
+        rt: "RT 02",
+        kelurahan: "Manggarai Selatan",
+        kecamatan: "Tebet",
+        city: "Jakarta Selatan",
+        address: "Pos RW 05, Jl. Manggarai Selatan No. 4",
+        contactPhone: "081277889900",
+        leaderName: "Bdn. Tri Handayani, A.Md.Keb",
+      })
+      .returning();
+    mawarPosyandu = inserted;
+    console.log("Created master data: Posyandu Mawar 02 (POS-MAWAR-02)");
+  }
+
+  // 1. Super Admin Account (Pusat Riset)
   const [existingAdmin] = await drizzleDb
     .select({ id: guardians.id })
     .from(guardians)
@@ -42,9 +96,60 @@ async function main() {
     console.log("Created default Admin account: admin@sicehat.id / AdminSehat2026!");
   }
 
-  // Sample Guardian & Child for Surveillance demonstration
-  const [existingMother] = await drizzleDb
+  // 2. Admin Posyandu Accounts
+  const [existingMelatiAdmin] = await drizzleDb
     .select({ id: guardians.id })
+    .from(guardians)
+    .where(eq(guardians.email, "posyandu.melati@sicehat.id"))
+    .limit(1);
+
+  if (!existingMelatiAdmin) {
+    const posyanduPasswordHash = await Bun.password.hash("PosyanduSehat2026!", {
+      algorithm: "bcrypt",
+      cost: 10,
+    });
+    await drizzleDb.insert(guardians).values({
+      email: "posyandu.melati@sicehat.id",
+      passwordHash: posyanduPasswordHash,
+      name: "Bdn. Siti Rahmawati (Admin Posyandu Melati 01)",
+      role: "POSYANDU",
+      posyanduId: melatiPosyandu.id,
+      phone: "081233445566",
+      education: "D4 Kebidanan",
+      occupation: "Bidan Pembina Posyandu",
+      address: "Jl. Tebet Barat Dalam Raya No. 12",
+    });
+    console.log("Created Admin Posyandu Melati: posyandu.melati@sicehat.id / PosyanduSehat2026!");
+  }
+
+  const [existingMawarAdmin] = await drizzleDb
+    .select({ id: guardians.id })
+    .from(guardians)
+    .where(eq(guardians.email, "posyandu.mawar@sicehat.id"))
+    .limit(1);
+
+  if (!existingMawarAdmin) {
+    const posyanduPasswordHash = await Bun.password.hash("PosyanduSehat2026!", {
+      algorithm: "bcrypt",
+      cost: 10,
+    });
+    await drizzleDb.insert(guardians).values({
+      email: "posyandu.mawar@sicehat.id",
+      passwordHash: posyanduPasswordHash,
+      name: "Bdn. Tri Handayani (Admin Posyandu Mawar 02)",
+      role: "POSYANDU",
+      posyanduId: mawarPosyandu.id,
+      phone: "081277889900",
+      education: "D3 Kebidanan",
+      occupation: "Bidan Pembina Posyandu",
+      address: "Jl. Manggarai Selatan No. 4",
+    });
+    console.log("Created Admin Posyandu Mawar: posyandu.mawar@sicehat.id / PosyanduSehat2026!");
+  }
+
+  // Sample Guardian & Child for Surveillance demonstration (associated with Posyandu Melati 01)
+  const [existingMother] = await drizzleDb
+    .select({ id: guardians.id, posyanduId: guardians.posyanduId })
     .from(guardians)
     .where(eq(guardians.email, "ibu.rina@example.com"))
     .limit(1);
@@ -61,6 +166,7 @@ async function main() {
         passwordHash: motherPasswordHash,
         name: "Ibu Rina Sasmita",
         role: "GUARDIAN",
+        posyanduId: melatiPosyandu.id,
         phone: "081234567890",
         education: "S1 Pendidikan",
         occupation: "Guru SD",
@@ -72,6 +178,7 @@ async function main() {
       .insert(children)
       .values({
         guardianId: mother.id,
+        posyanduId: melatiPosyandu.id,
         name: "Ahmad Farhan",
         gender: "MALE",
         birthDate: new Date("2017-05-10"),

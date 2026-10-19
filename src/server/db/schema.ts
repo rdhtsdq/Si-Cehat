@@ -10,8 +10,30 @@ import { relations } from "drizzle-orm";
 
 const uuidDefault = () => crypto.randomUUID();
 
+export const posyandus = pgTable("Posyandu", {
+  id: text("id").primaryKey().$defaultFn(uuidDefault),
+  name: text("name").notNull(),
+  code: text("code").notNull().unique(),
+  rw: text("rw"),
+  rt: text("rt"),
+  kelurahan: text("kelurahan"),
+  kecamatan: text("kecamatan"),
+  city: text("city").default("Jakarta Selatan"),
+  address: text("address"),
+  contactPhone: text("contactPhone"),
+  leaderName: text("leaderName"),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const guardians = pgTable("Guardian", {
   id: text("id").primaryKey().$defaultFn(uuidDefault),
+  posyanduId: text("posyanduId").references(() => posyandus.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
   email: text("email").notNull().unique(),
   passwordHash: text("passwordHash").notNull(),
   name: text("name"),
@@ -25,6 +47,10 @@ export const guardians = pgTable("Guardian", {
 
 export const children = pgTable("Child", {
   id: text("id").primaryKey().$defaultFn(uuidDefault),
+  posyanduId: text("posyanduId").references(() => posyandus.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
   guardianId: text("guardianId")
     .notNull()
     .references(() => guardians.id, { onDelete: "restrict", onUpdate: "cascade" }),
@@ -229,7 +255,16 @@ export const botConfigs = pgTable("BotConfig", {
 });
 
 // Relations
-export const guardiansRelations = relations(guardians, ({ many }) => ({
+export const posyandusRelations = relations(posyandus, ({ many }) => ({
+  guardians: many(guardians),
+  children: many(children),
+}));
+
+export const guardiansRelations = relations(guardians, ({ one, many }) => ({
+  posyandu: one(posyandus, {
+    fields: [guardians.posyanduId],
+    references: [posyandus.id],
+  }),
   children: many(children),
   reminders: many(reminders),
   screenings: many(screeningRecords),
@@ -237,6 +272,10 @@ export const guardiansRelations = relations(guardians, ({ many }) => ({
 }));
 
 export const childrenRelations = relations(children, ({ one, many }) => ({
+  posyandu: one(posyandus, {
+    fields: [children.posyanduId],
+    references: [posyandus.id],
+  }),
   guardian: one(guardians, {
     fields: [children.guardianId],
     references: [guardians.id],

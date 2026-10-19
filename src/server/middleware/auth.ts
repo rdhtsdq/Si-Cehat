@@ -13,6 +13,8 @@ export interface SessionUser {
   email: string;
   role: string;
   name?: string | null;
+  posyanduId?: string | null;
+  posyanduName?: string | null;
 }
 
 export interface SessionPayload {
@@ -29,6 +31,8 @@ export async function createSessionToken(user: SessionUser): Promise<string> {
       email: user.email,
       role: user.role,
       name: user.name ?? null,
+      posyanduId: user.posyanduId ?? null,
+      posyanduName: user.posyanduName ?? null,
       iat: now,
       exp: now + 60 * 60 * 24 * 7, // 7 days
     },
@@ -65,6 +69,8 @@ export async function getSession(c: Context): Promise<SessionPayload | null> {
     const email = payload.email as string | undefined;
     const role = (payload.role as string | undefined) || "GUARDIAN";
     const name = (payload.name as string | null | undefined) ?? null;
+    const posyanduId = (payload.posyanduId as string | null | undefined) ?? null;
+    const posyanduName = (payload.posyanduName as string | null | undefined) ?? null;
 
     if (!id || !email) return null;
 
@@ -74,6 +80,8 @@ export async function getSession(c: Context): Promise<SessionPayload | null> {
         email,
         role,
         name,
+        posyanduId,
+        posyanduName,
       },
     };
   } catch {
@@ -88,6 +96,9 @@ export async function verifyAdmin(c: Context) {
       authorized: false as const,
       response: c.json({ error: { message: "Harus login terlebih dahulu." } }, 401),
       user: null,
+      isSuperAdmin: false,
+      isPosyandu: false,
+      posyanduId: null,
     };
   }
 
@@ -104,21 +115,57 @@ export async function verifyAdmin(c: Context) {
       email: guardians.email,
       role: guardians.role,
       name: guardians.name,
+      posyanduId: guardians.posyanduId,
     })
     .from(guardians)
     .where(conditions.length > 1 ? or(...conditions) : conditions[0])
     .limit(1);
 
-  if (!user || user.role !== "ADMIN") {
+  if (!user || (user.role !== "ADMIN" && user.role !== "POSYANDU")) {
     return {
       authorized: false as const,
       response: c.json(
-        { error: { message: "Akses ditolak. Endpoint ini memerlukan hak akses Administrator." } },
+        { error: { message: "Akses ditolak. Endpoint ini memerlukan hak akses Administrator atau Admin Posyandu." } },
         403
       ),
       user: null,
+      isSuperAdmin: false,
+      isPosyandu: false,
+      posyanduId: null,
     };
   }
 
-  return { authorized: true as const, response: null, user };
+  const isSuperAdmin = user.role === "ADMIN";
+  const isPosyandu = user.role === "POSYANDU";
+
+  return {
+    authorized: true as const,
+    response: null,
+    user: {
+      ...user,
+      posyanduId: user.posyanduId ?? null,
+    },
+    isSuperAdmin,
+    isPosyandu,
+    posyanduId: user.posyanduId ?? null,
+  };
+}
+
+export async function verifySuperAdmin(c: Context) {
+  const auth = await verifyAdmin(c);
+  if (!auth.authorized) return auth;
+  if (!auth.isSuperAdmin) {
+    return {
+      authorized: false as const,
+      response: c.json(
+        { error: { message: "Akses ditolak. Tindakan ini hanya dapat dilakukan oleh Administrator Pusat." } },
+        403
+      ),
+      user: null,
+      isSuperAdmin: false,
+      isPosyandu: true,
+      posyanduId: auth.posyanduId,
+    };
+  }
+  return auth;
 }

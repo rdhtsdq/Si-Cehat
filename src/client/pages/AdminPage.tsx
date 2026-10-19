@@ -8,12 +8,14 @@ interface MeResponse {
     email: string;
     role: string;
     name?: string | null;
+    posyanduId?: string | null;
+    posyanduName?: string | null;
   } | null;
 }
 
 export default function AdminPage() {
   const [, navigate] = useLocation();
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<MeResponse["user"] | null>(null);
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
@@ -31,12 +33,12 @@ export default function AdminPage() {
           return;
         }
 
-        if (data.user.role !== "ADMIN") {
+        if (data.user.role !== "ADMIN" && data.user.role !== "POSYANDU") {
           navigate("/admin/login?error=forbidden", { replace: true });
           return;
         }
 
-        setUserEmail(data.user.email);
+        setCurrentUser(data.user);
       } catch {
         if (active) {
           navigate("/admin/login", { replace: true });
@@ -54,15 +56,22 @@ export default function AdminPage() {
     };
   }, [navigate]);
 
-  if (checking || !userEmail) {
+  if (checking || !currentUser) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-[#f2f0e7] text-[#18372e]">
         <div className="text-center text-sm font-black">
-          Memverifikasi sesi Administrator...
+          Memverifikasi sesi Administrator & Posyandu...
         </div>
       </main>
     );
   }
 
-  return <AdminDashboardClient userEmail={userEmail} />;
+  return (
+    <AdminDashboardClient
+      userEmail={currentUser.email}
+      userRole={currentUser.role}
+      posyanduId={currentUser.posyanduId}
+      posyanduName={currentUser.posyanduName}
+    />
+  );
 }

@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { drizzleDb } from "../db";
-import { guardians, children } from "../db/schema";
+import { guardians, children, posyandus } from "../db/schema";
 import {
   createSessionToken,
   setSessionCookie,
@@ -13,7 +13,7 @@ import {
 export const authRoutes = new Hono();
 
 const registerSchema = z.object({
-  email: z.string().email("Format email tidak valid"),
+  email: z.string().trim().toLowerCase().email("Format email tidak valid"),
   password: z.string().min(6, "Password minimal 6 karakter"),
   motherName: z.string().trim().min(2).max(60).optional(),
   name: z.string().trim().min(2).max(60).optional(),
@@ -22,7 +22,7 @@ const registerSchema = z.object({
 });
 
 const loginSchema = z.object({
-  email: z.string().email("Format email tidak valid"),
+  email: z.string().trim().toLowerCase().email("Format email tidak valid"),
   password: z.string().min(1, "Kata sandi wajib diisi"),
 });
 
@@ -43,7 +43,7 @@ authRoutes.post("/register", async (c) => {
     const [existing] = await drizzleDb
       .select({ id: guardians.id })
       .from(guardians)
-      .where(eq(guardians.email, email))
+      .where(eq(sql`lower(${guardians.email})`, email))
       .limit(1);
 
     if (existing) {
@@ -116,7 +116,7 @@ authRoutes.post("/login", async (c) => {
     const [guardian] = await drizzleDb
       .select()
       .from(guardians)
-      .where(eq(guardians.email, email))
+      .where(eq(sql`lower(${guardians.email})`, email))
       .limit(1);
 
     if (!guardian) {
@@ -134,11 +134,23 @@ authRoutes.post("/login", async (c) => {
       );
     }
 
+    let posyanduName: string | null = null;
+    if (guardian.posyanduId) {
+      const [p] = await drizzleDb
+        .select({ name: posyandus.name })
+        .from(posyandus)
+        .where(eq(posyandus.id, guardian.posyanduId))
+        .limit(1);
+      posyanduName = p?.name ?? null;
+    }
+
     const user = {
       id: guardian.id,
       email: guardian.email,
       role: guardian.role || "GUARDIAN",
       name: guardian.name,
+      posyanduId: guardian.posyanduId ?? null,
+      posyanduName,
     };
 
     const token = await createSessionToken(user);
@@ -175,6 +187,7 @@ authRoutes.get("/me", async (c) => {
         email: guardians.email,
         role: guardians.role,
         name: guardians.name,
+        posyanduId: guardians.posyanduId,
       })
       .from(guardians)
       .where(eq(guardians.id, session.user.id))
@@ -184,7 +197,22 @@ authRoutes.get("/me", async (c) => {
       return c.json({ user: null }, 200);
     }
 
-    return c.json({ user: guardian });
+    let posyanduName: string | null = null;
+    if (guardian.posyanduId) {
+      const [p] = await drizzleDb
+        .select({ name: posyandus.name })
+        .from(posyandus)
+        .where(eq(posyandus.id, guardian.posyanduId))
+        .limit(1);
+      posyanduName = p?.name ?? null;
+    }
+
+    return c.json({
+      user: {
+        ...guardian,
+        posyanduName,
+      },
+    });
   } catch {
     return c.json({ user: session.user });
   }

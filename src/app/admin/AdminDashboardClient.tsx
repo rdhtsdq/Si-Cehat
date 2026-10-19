@@ -135,6 +135,39 @@ interface ConsultationItem {
   };
 }
 
+export interface PosyanduAdminItem {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  createdAt: string;
+}
+
+export interface PosyanduItem {
+  id: string;
+  name: string;
+  code: string;
+  rw?: string | null;
+  rt?: string | null;
+  kelurahan?: string | null;
+  kecamatan?: string | null;
+  city?: string | null;
+  address?: string | null;
+  contactPhone?: string | null;
+  leaderName?: string | null;
+  totalGuardians: number;
+  totalChildren: number;
+  admins: PosyanduAdminItem[];
+  createdAt?: string;
+}
+
+export interface AdminDashboardClientProps {
+  userEmail?: string | null;
+  userRole?: string | null;
+  posyanduId?: string | null;
+  posyanduName?: string | null;
+}
+
 interface FamilyItem {
   id: string;
   name?: string | null;
@@ -143,6 +176,12 @@ interface FamilyItem {
   education?: string | null;
   occupation?: string | null;
   address?: string | null;
+  posyanduId?: string | null;
+  posyandu?: {
+    id: string;
+    name: string;
+    code: string;
+  } | null;
   createdAt: string;
   children: Array<{
     id: string;
@@ -213,13 +252,58 @@ Kamu bukan dokter dan tidak menggantikan tenaga kesehatan.
 
 Nada bicara: ramah, sederhana, positif, tidak menghakimi, dan sesuai untuk anak SD.`;
 
-export default function AdminDashboardClient({ userEmail }: { userEmail?: string | null }) {
+export default function AdminDashboardClient({
+  userEmail,
+  userRole = "ADMIN",
+  posyanduId = null,
+  posyanduName = null,
+}: AdminDashboardClientProps) {
+  const isSuperAdmin = userRole === "ADMIN";
+  const isPosyandu = userRole === "POSYANDU";
+
   const [activeTab, setActiveTab] = useState<
-    "metrics" | "recipes" | "education" | "consultations" | "families" | "cms" | "bot" | "export"
+    "metrics" | "posyandu" | "recipes" | "education" | "consultations" | "families" | "cms" | "bot" | "export"
   >("metrics");
 
   const [data, setData] = useState<MetricsData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Multi-Tenancy Posyandu States
+  const [posyandus, setPosyandus] = useState<PosyanduItem[]>([]);
+  const [posyandusLoading, setPosyandusLoading] = useState(false);
+  const [selectedPosyanduFilter, setSelectedPosyanduFilter] = useState<string>(posyanduId || "ALL");
+  const [showPosyanduModal, setShowPosyanduModal] = useState(false);
+  const [editingPosyanduId, setEditingPosyanduId] = useState<string | null>(null);
+  const [posyanduSaving, setPosyanduSaving] = useState(false);
+  const [posyanduForm, setPosyanduForm] = useState({
+    name: "",
+    code: "",
+    rw: "",
+    rt: "",
+    kelurahan: "",
+    kecamatan: "",
+    city: "Kota Bandung",
+    address: "",
+    contactPhone: "",
+    leaderName: "",
+    adminEmail: "",
+    adminPassword: "",
+  });
+
+  // Admin Account Generator State
+  const [adminModalPosyandu, setAdminModalPosyandu] = useState<PosyanduItem | null>(null);
+  const [adminSaving, setAdminSaving] = useState(false);
+  const [newAdminForm, setNewAdminForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    phone: "",
+  });
+
+  // Assign Family to Posyandu State
+  const [assignFamilyModal, setAssignFamilyModal] = useState<FamilyItem | null>(null);
+  const [selectedAssignPosyanduId, setSelectedAssignPosyanduId] = useState<string>("");
+  const [assignSaving, setAssignSaving] = useState(false);
 
   // Recipes State
   const [recipes, setRecipes] = useState<RecipeItem[]>([]);
@@ -318,12 +402,44 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
     fetchArticles();
     fetchConsultations();
     fetchFamilies();
+    if (isSuperAdmin) {
+      fetchPosyandus();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function fetchMetrics() {
+  async function handleLogout() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // ignore
+    }
+    window.location.href = "/admin/login";
+  }
+
+  function handleFilterPosyanduChange(newPid: string) {
+    setSelectedPosyanduFilter(newPid);
+    fetchMetrics(newPid);
+    fetchFamilies(newPid);
+    fetchConsultations(newPid);
+  }
+
+  function fetchPosyandus() {
+    setPosyandusLoading(true);
+    fetch("/api/admin/posyandus")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.posyandus) setPosyandus(json.posyandus);
+      })
+      .catch((err) => console.error("Gagal memuat master posyandu", err))
+      .finally(() => setPosyandusLoading(false));
+  }
+
+  function fetchMetrics(pId?: string) {
     setLoading(true);
-    fetch("/api/admin/metrics")
+    const pid = pId !== undefined ? pId : selectedPosyanduFilter;
+    const url = pid && pid !== "ALL" ? `/api/admin/metrics?posyanduId=${encodeURIComponent(pid)}` : "/api/admin/metrics";
+    fetch(url)
       .then((res) => res.json())
       .then((json) => {
         if (json.metrics) setData(json);
@@ -354,9 +470,11 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
       .finally(() => setArticlesLoading(false));
   }
 
-  function fetchConsultations() {
+  function fetchConsultations(pId?: string) {
     setConsultationsLoading(true);
-    fetch("/api/admin/consultations?status=ALL")
+    const pid = pId !== undefined ? pId : selectedPosyanduFilter;
+    const pQuery = pid && pid !== "ALL" ? `&posyanduId=${encodeURIComponent(pid)}` : "";
+    fetch(`/api/admin/consultations?status=ALL${pQuery}`)
       .then((res) => res.json())
       .then((json) => {
         if (json.consultations) setConsultations(json.consultations);
@@ -365,15 +483,172 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
       .finally(() => setConsultationsLoading(false));
   }
 
-  function fetchFamilies() {
+  function fetchFamilies(pId?: string) {
     setFamiliesLoading(true);
-    fetch(`/api/admin/families?search=${encodeURIComponent(familySearchQuery)}`)
+    const pid = pId !== undefined ? pId : selectedPosyanduFilter;
+    const pQuery = pid && pid !== "ALL" ? `&posyanduId=${encodeURIComponent(pid)}` : "";
+    fetch(`/api/admin/families?search=${encodeURIComponent(familySearchQuery)}${pQuery}`)
       .then((res) => res.json())
       .then((json) => {
         if (json.families) setFamilies(json.families);
       })
       .catch((err) => console.error("Gagal memuat direktori keluarga", err))
       .finally(() => setFamiliesLoading(false));
+  }
+
+  // Posyandu Master Handlers (Super Admin Only)
+  async function handleSavePosyandu(e: React.FormEvent) {
+    e.preventDefault();
+    if (!posyanduForm.name.trim() || !posyanduForm.code.trim()) {
+      alert("Nama Posyandu dan Kode Unik wajib diisi.");
+      return;
+    }
+
+    setPosyanduSaving(true);
+    try {
+      const payload = {
+        name: posyanduForm.name.trim(),
+        code: posyanduForm.code.trim().toUpperCase(),
+        rw: posyanduForm.rw.trim() || undefined,
+        rt: posyanduForm.rt.trim() || undefined,
+        kelurahan: posyanduForm.kelurahan.trim() || undefined,
+        kecamatan: posyanduForm.kecamatan.trim() || undefined,
+        city: posyanduForm.city.trim() || undefined,
+        address: posyanduForm.address.trim() || undefined,
+        contactPhone: posyanduForm.contactPhone.trim() || undefined,
+        leaderName: posyanduForm.leaderName.trim() || undefined,
+        adminEmail: posyanduForm.adminEmail.trim() || undefined,
+        adminPassword: posyanduForm.adminPassword || undefined,
+      };
+
+      const url = editingPosyanduId ? `/api/admin/posyandus/${editingPosyanduId}` : "/api/admin/posyandus";
+      const method = editingPosyanduId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error?.message || "Gagal menyimpan data Posyandu.");
+      }
+
+      setShowPosyanduModal(false);
+      setEditingPosyanduId(null);
+      setPosyanduForm({
+        name: "",
+        code: "",
+        rw: "",
+        rt: "",
+        kelurahan: "",
+        kecamatan: "",
+        city: "Kota Bandung",
+        address: "",
+        contactPhone: "",
+        leaderName: "",
+        adminEmail: "",
+        adminPassword: "",
+      });
+      fetchPosyandus();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Terjadi kesalahan.");
+    } finally {
+      setPosyanduSaving(false);
+    }
+  }
+
+  function openEditPosyandu(p: PosyanduItem) {
+    setEditingPosyanduId(p.id);
+    setPosyanduForm({
+      name: p.name,
+      code: p.code,
+      rw: p.rw || "",
+      rt: p.rt || "",
+      kelurahan: p.kelurahan || "",
+      kecamatan: p.kecamatan || "",
+      city: p.city || "Kota Bandung",
+      address: p.address || "",
+      contactPhone: p.contactPhone || "",
+      leaderName: p.leaderName || "",
+      adminEmail: "",
+      adminPassword: "",
+    });
+    setShowPosyanduModal(true);
+  }
+
+  async function handleDeletePosyandu(id: string, name: string) {
+    if (!confirm(`Hapus unit Posyandu "${name}"? Pastikan tidak ada data terkait.`)) {
+      return;
+    }
+    const res = await fetch(`/api/admin/posyandus/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      fetchPosyandus();
+      fetchFamilies();
+    } else {
+      const err = await res.json();
+      alert("Gagal menghapus Posyandu: " + (err.error?.message || "Terjadi kesalahan."));
+    }
+  }
+
+  async function handleCreateAdminAccount(e: React.FormEvent) {
+    e.preventDefault();
+    if (!adminModalPosyandu) return;
+    if (!newAdminForm.email || !newAdminForm.password) {
+      alert("Email dan kata sandi login wajib diisi.");
+      return;
+    }
+
+    setAdminSaving(true);
+    try {
+      const res = await fetch(`/api/admin/posyandus/${adminModalPosyandu.id}/admins`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newAdminForm),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error?.message || "Gagal membuat kredensial admin.");
+      }
+
+      setAdminModalPosyandu(null);
+      setNewAdminForm({ name: "", email: "", password: "", phone: "" });
+      fetchPosyandus();
+      alert("Kredensial Admin Posyandu berhasil dibuat!");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Terjadi kesalahan.");
+    } finally {
+      setAdminSaving(false);
+    }
+  }
+
+  async function handleAssignFamilyPosyandu(e: React.FormEvent) {
+    e.preventDefault();
+    if (!assignFamilyModal) return;
+
+    setAssignSaving(true);
+    try {
+      const res = await fetch(`/api/admin/families/${assignFamilyModal.id}/posyandu`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ posyanduId: selectedAssignPosyanduId || null }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error?.message || "Gagal memetakan keluarga ke Posyandu.");
+      }
+
+      setAssignFamilyModal(null);
+      fetchFamilies();
+      fetchMetrics();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Terjadi kesalahan.");
+    } finally {
+      setAssignSaving(false);
+    }
   }
 
   function fetchCmsContent() {
@@ -782,13 +1057,21 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
                     <span className="text-base font-bold tracking-tight text-slate-900 leading-none">
                       Si-Cehat
                     </span>
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                      Surveilans
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                      isPosyandu
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                        : "bg-blue-50 text-blue-800 border-blue-300"
+                    }`}>
+                      {isPosyandu ? "Admin Posyandu" : "Super Admin (Pusat)"}
                     </span>
                   </div>
                   <span className="text-[11px] font-medium text-slate-500 mt-1 flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Konsol Klinis & Posyandu Terpadu
+                    {isPosyandu ? (
+                      <span>Wilayah: <strong className="text-emerald-800 font-bold">{posyanduName || "Posyandu Anda"}</strong></span>
+                    ) : (
+                      <span>Konsol Klinis & Posyandu Terpadu</span>
+                    )}
                   </span>
                 </div>
               </Link>
@@ -796,6 +1079,32 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
 
             {/* Header Actions */}
             <div className="flex items-center space-x-2">
+              {/* Tenant Filter for Super Admin */}
+              {isSuperAdmin && (
+                <div className="hidden md:flex items-center gap-1.5 text-xs mr-1">
+                  <span className="font-bold text-slate-600 text-[11px]">Tenant:</span>
+                  <select
+                    value={selectedPosyanduFilter}
+                    onChange={(e) => handleFilterPosyanduChange(e.target.value)}
+                    className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-[#0F5132] shadow-xs hover:border-[#0F5132] focus:border-[#0F5132] focus:outline-hidden"
+                  >
+                    <option value="ALL">🏢 Semua Posyandu (Pusat)</option>
+                    {posyandus.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        📍 {p.name} ({p.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Posyandu indicator badge */}
+              {isPosyandu && (
+                <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 mr-1">
+                  <span>📍 {posyanduName || "Posyandu Wilayah"}</span>
+                </div>
+              )}
+
               <Link
                 href="/api-docs"
                 className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-xs transition"
@@ -810,6 +1119,7 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
                 type="button"
                 onClick={() => {
                   fetchMetrics();
+                  if (activeTab === "posyandu" && isSuperAdmin) fetchPosyandus();
                   if (activeTab === "recipes") fetchRecipes();
                   if (activeTab === "education") fetchArticles();
                   if (activeTab === "consultations") fetchConsultations();
@@ -830,17 +1140,24 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
 
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-1 text-xs">
-                  <div className="h-6 w-6 rounded-full bg-[#0F5132] text-white flex items-center justify-center font-bold text-[10px]">
+                  <div className={`h-6 w-6 rounded-full text-white flex items-center justify-center font-bold text-[10px] ${
+                    isPosyandu ? "bg-emerald-700" : "bg-[#0F5132]"
+                  }`}>
                     {(userEmail?.[0] || "A").toUpperCase()}
                   </div>
-                  <span className="font-medium text-slate-700 hidden md:inline">
-                    {userEmail || "admin@sicehat.id"}
-                  </span>
+                  <div className="hidden md:flex flex-col text-left">
+                    <span className="font-semibold text-slate-700 leading-tight">
+                      {userEmail || "admin@sicehat.id"}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {isPosyandu ? "Admin Posyandu" : "Super Admin"}
+                    </span>
+                  </div>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => signOut({ callbackUrl: "/admin/login" })}
+                  onClick={handleLogout}
                   title="Keluar dari sesi"
                   className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 shadow-xs transition"
                 >
@@ -869,6 +1186,30 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
               </svg>
               <span>Surveilans</span>
             </button>
+
+            {/* Master Posyandu Tab: ONLY for Super Admin */}
+            {isSuperAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("posyandu");
+                  fetchPosyandus();
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                  activeTab === "posyandu"
+                    ? "bg-[#0F5132] text-white shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 21h18M3 7v14M21 7v14M6 3h12a2 2 0 0 1 2 2v2H4V5a2 2 0 0 1 2-2zM9 10h2v3H9zm4 0h2v3h-2zm-4 6h2v3H9zm4 0h2v3h-2z" />
+                </svg>
+                <span>Master Posyandu</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                  {posyandus.length}
+                </span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -953,23 +1294,6 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
                 <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
               </svg>
               <span>Misi & Kuis</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("bot")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === "bot"
-                  ? "bg-[#0F5132] text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="10" rx="2" />
-                <circle cx="12" cy="5" r="2" />
-                <path d="M12 7v4M8 16h.01M16 16h.01" />
-              </svg>
-              <span>Bot AI</span>
             </button>
 
             <button
@@ -1348,6 +1672,204 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB 1.5: MASTER DATA POSYANDU (SUPER ADMIN ONLY)         */}
+        {/* ========================================================= */}
+        {activeTab === "posyandu" && isSuperAdmin && (
+          <div className="space-y-6">
+            {/* Header Posyandu */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E2E8F0] pb-4">
+              <div>
+                <h1 className="text-xl font-black text-[#0F5132]">Master Data Posyandu & Wilayah Kerja</h1>
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  Multi-tenancy master: kelola entitas Posyandu, batas RW/RT, penanggung jawab, dan akun kredensial login Admin Posyandu.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingPosyanduId(null);
+                  setPosyanduForm({
+                    name: "",
+                    code: `POS-${Date.now().toString().slice(-4)}`,
+                    rw: "",
+                    rt: "",
+                    kelurahan: "",
+                    kecamatan: "",
+                    city: "Kota Bandung",
+                    address: "",
+                    contactPhone: "",
+                    leaderName: "",
+                    adminEmail: "",
+                    adminPassword: "",
+                  });
+                  setShowPosyanduModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#0F5132] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#146C43] shadow-xs transition"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>Tambah Posyandu Baru</span>
+              </button>
+            </div>
+
+            {/* Summary Metrics Cards */}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                <span className="text-xs font-semibold text-slate-500">Total Unit Posyandu</span>
+                <p className="mt-1 text-2xl font-black text-slate-900">{posyandus.length}</p>
+                <p className="text-[11px] text-emerald-700 font-medium mt-0.5">Unit terdaftar aktif</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                <span className="text-xs font-semibold text-slate-500">Keluarga Binaan</span>
+                <p className="mt-1 text-2xl font-black text-slate-900">
+                  {posyandus.reduce((sum, p) => sum + (p.totalGuardians || 0), 0)}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Ibu / Kepala Keluarga</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                <span className="text-xs font-semibold text-slate-500">Anak Terpantau</span>
+                <p className="mt-1 text-2xl font-black text-slate-900">
+                  {posyandus.reduce((sum, p) => sum + (p.totalChildren || 0), 0)}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Dalam sistem surveilans</p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+                <span className="text-xs font-semibold text-slate-500">Akun Admin Posyandu</span>
+                <p className="mt-1 text-2xl font-black text-slate-900">
+                  {posyandus.reduce((sum, p) => sum + (p.admins?.length || 0), 0)}
+                </p>
+                <p className="text-[11px] text-blue-700 font-medium mt-0.5">Kredensial login aktif</p>
+              </div>
+            </div>
+
+            {/* Posyandu List Table */}
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
+              <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-3 flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Daftar Posyandu & Akun Petugas ({posyandus.length})
+                </h3>
+                {posyandusLoading && (
+                  <span className="text-[11px] text-slate-500 animate-pulse">Memuat data...</span>
+                )}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-[#F8F9FA] text-[#495057] font-bold border-b border-[#E2E8F0]">
+                    <tr>
+                      <th className="py-3 px-4">Nama Posyandu & Kode</th>
+                      <th className="py-3 px-4">Wilayah Cakupan</th>
+                      <th className="py-3 px-4">Penanggung Jawab / Bidan</th>
+                      <th className="py-3 px-4">Binaan</th>
+                      <th className="py-3 px-4">Akun Admin Posyandu</th>
+                      <th className="py-3 px-4 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F1F5F9]">
+                    {posyandus.map((p) => (
+                      <tr key={p.id} className="hover:bg-[#F8F9FA]/80 transition">
+                        <td className="py-3 px-4">
+                          <p className="font-bold text-[#0F172A] text-sm">{p.name}</p>
+                          <span className="inline-block mt-0.5 font-mono text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                            {p.code}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-[#64748B] max-w-xs">
+                          <p className="font-semibold text-slate-800">
+                            RW {p.rw || "-"} / RT {p.rt || "-"}
+                          </p>
+                          <p className="text-[11px]">
+                            Kel. {p.kelurahan || "-"}, Kec. {p.kecamatan || "-"}
+                          </p>
+                          <p className="text-[10px] text-slate-400 truncate">{p.address || p.city || "-"}</p>
+                        </td>
+                        <td className="py-3 px-4 text-slate-800">
+                          <p className="font-bold">{p.leaderName || "-"}</p>
+                          {p.contactPhone && (
+                            <p className="text-[11px] text-emerald-700 font-semibold">{p.contactPhone}</p>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-bold text-slate-900">{p.totalGuardians}</span>{" "}
+                          <span className="text-slate-500">keluarga</span>
+                          <br />
+                          <span className="font-bold text-slate-900">{p.totalChildren}</span>{" "}
+                          <span className="text-slate-500">anak</span>
+                        </td>
+                        <td className="py-3 px-4 max-w-xs">
+                          <div className="space-y-1">
+                            {p.admins && p.admins.length > 0 ? (
+                              p.admins.map((adm) => (
+                                <div
+                                  key={adm.id}
+                                  className="inline-flex items-center gap-1 rounded bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] text-blue-900 font-mono mr-1 mb-1"
+                                >
+                                  <span>👤 {adm.email}</span>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-[11px] text-slate-400 italic">Belum ada akun admin</p>
+                            )}
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAdminModalPosyandu(p);
+                                  setNewAdminForm({
+                                    name: `Admin ${p.name}`,
+                                    email: `${p.code.toLowerCase().replace(/[^a-z0-9]/g, "")}@sicehat.id`,
+                                    password: "",
+                                    phone: p.contactPhone || "",
+                                  });
+                                }}
+                                className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 underline inline-flex items-center gap-0.5"
+                              >
+                                + Tambah Kredensial Login
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openEditPosyandu(p)}
+                              className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 shadow-xs"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePosyandu(p.id, p.name)}
+                              className="rounded border border-rose-200 bg-white px-2 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-50 shadow-xs"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {posyandus.length === 0 && !posyandusLoading && (
+                  <div className="py-12 text-center text-xs text-slate-500">
+                    <p className="font-semibold text-slate-700">Belum ada data Posyandu terdaftar.</p>
+                    <p className="mt-1">Klik tombol &quot;Tambah Posyandu Baru&quot; di atas untuk mendaftarkan unit Posyandu perdana.</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1768,6 +2290,7 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
                 <thead className="bg-[#F8F9FA] text-[#495057] font-bold border-b border-[#E2E8F0]">
                   <tr>
                     <th className="py-3 px-4">Profil Ibu / Wali</th>
+                    <th className="py-3 px-4">Posyandu Binaan</th>
                     <th className="py-3 px-4">Demografi & Alamat</th>
                     <th className="py-3 px-4">Profil Anak</th>
                     <th className="py-3 px-4">Skrining Terakhir</th>
@@ -1782,6 +2305,20 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
                         <p className="font-bold text-[#0F172A]">{f.name || "Ibu"}</p>
                         <p className="font-mono text-[11px] text-[#64748B]">{f.email}</p>
                         <p className="text-[11px] text-emerald-700 font-semibold">{f.phone || "-"}</p>
+                      </td>
+                      <td className="py-3 px-4">
+                        {f.posyandu ? (
+                          <div>
+                            <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200">
+                              📍 {f.posyandu.name}
+                            </span>
+                            <p className="text-[10px] text-slate-500 font-mono mt-0.5">{f.posyandu.code}</p>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                            Belum Dialokasikan
+                          </span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-[#64748B] max-w-xs">
                         <p>{f.occupation || "-"} • {f.education || "-"}</p>
@@ -1830,16 +2367,31 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
                         )}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        {f.phone && (
-                          <a
-                            href={`https://wa.me/${f.phone.replace(/[^0-9]/g, "")}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 shadow-xs"
-                          >
-                            Hubungi
-                          </a>
-                        )}
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isSuperAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAssignFamilyModal(f);
+                                setSelectedAssignPosyanduId(f.posyanduId || "");
+                              }}
+                              className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 shadow-xs"
+                              title="Ubah Alokasi Posyandu"
+                            >
+                              Posyandu
+                            </button>
+                          )}
+                          {f.phone && (
+                            <a
+                              href={`https://wa.me/${f.phone.replace(/[^0-9]/g, "")}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 shadow-xs"
+                            >
+                              Hubungi
+                            </a>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -2182,7 +2734,7 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
                   Format tabel spreadsheet siap pakai untuk analisis SPSS, R, atau Python Pandas.
                 </p>
                 <a
-                  href="/api/admin/export?format=csv"
+                  href={`/api/admin/export?format=csv${selectedPosyanduFilter && selectedPosyanduFilter !== "ALL" ? `&posyanduId=${encodeURIComponent(selectedPosyanduFilter)}` : ""}`}
                   download="dataset_si_cehat.csv"
                   className="mt-4 inline-block rounded bg-[#0F5132] px-4 py-2 text-xs font-bold text-white hover:bg-[#146C43]"
                 >
@@ -2196,7 +2748,7 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
                   Struktur objek JSON lengkap untuk integrasi pipeline data atau model analitik prediktif.
                 </p>
                 <a
-                  href="/api/admin/export?format=json"
+                  href={`/api/admin/export?format=json${selectedPosyanduFilter && selectedPosyanduFilter !== "ALL" ? `&posyanduId=${encodeURIComponent(selectedPosyanduFilter)}` : ""}`}
                   download="dataset_si_cehat.json"
                   className="mt-4 inline-block rounded bg-[#144E83] px-4 py-2 text-xs font-bold text-white hover:bg-[#00335E]"
                 >
@@ -2592,6 +3144,360 @@ export default function AdminDashboardClient({ userEmail }: { userEmail?: string
                   className="rounded bg-[#0F5132] px-5 py-2 text-xs font-bold text-white hover:bg-[#146C43]"
                 >
                   Simpan Pembaruan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: FORM MASTER POSYANDU                                */}
+      {/* ========================================================= */}
+      {showPosyanduModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+              <div>
+                <h3 className="text-base font-black text-[#0F5132]">
+                  {editingPosyanduId ? "Edit Data Master Posyandu" : "Tambah Posyandu Multi-Tenancy"}
+                </h3>
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  Lengkapi identitas unit Posyandu, cakupan wilayah binaan, dan akun pengelola.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPosyanduModal(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePosyandu} className="mt-4 space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Nama Posyandu *</label>
+                  <input
+                    type="text"
+                    required
+                    value={posyanduForm.name}
+                    onChange={(e) => setPosyanduForm({ ...posyanduForm, name: e.target.value })}
+                    className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
+                    placeholder="cth: Posyandu Melati 01"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Kode Unik Posyandu *</label>
+                  <input
+                    type="text"
+                    required
+                    value={posyanduForm.code}
+                    onChange={(e) => setPosyanduForm({ ...posyanduForm, code: e.target.value.toUpperCase() })}
+                    className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs font-mono uppercase"
+                    placeholder="cth: POS-MELATI-01"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 bg-[#F8F9FA] p-3 rounded-lg border border-[#E9ECEF]">
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">RW</label>
+                  <input
+                    type="text"
+                    value={posyanduForm.rw}
+                    onChange={(e) => setPosyanduForm({ ...posyanduForm, rw: e.target.value })}
+                    className="mt-1 w-full rounded border border-[#CBD5E1] bg-white p-1.5 text-xs"
+                    placeholder="cth: 05"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">RT (Opsional)</label>
+                  <input
+                    type="text"
+                    value={posyanduForm.rt}
+                    onChange={(e) => setPosyanduForm({ ...posyanduForm, rt: e.target.value })}
+                    className="mt-1 w-full rounded border border-[#CBD5E1] bg-white p-1.5 text-xs"
+                    placeholder="cth: 01-04"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Kelurahan / Desa</label>
+                  <input
+                    type="text"
+                    value={posyanduForm.kelurahan}
+                    onChange={(e) => setPosyanduForm({ ...posyanduForm, kelurahan: e.target.value })}
+                    className="mt-1 w-full rounded border border-[#CBD5E1] bg-white p-1.5 text-xs"
+                    placeholder="cth: Sukajadi"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Kecamatan</label>
+                  <input
+                    type="text"
+                    value={posyanduForm.kecamatan}
+                    onChange={(e) => setPosyanduForm({ ...posyanduForm, kecamatan: e.target.value })}
+                    className="mt-1 w-full rounded border border-[#CBD5E1] bg-white p-1.5 text-xs"
+                    placeholder="cth: Sukajadi"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Kota / Kabupaten</label>
+                  <input
+                    type="text"
+                    value={posyanduForm.city}
+                    onChange={(e) => setPosyanduForm({ ...posyanduForm, city: e.target.value })}
+                    className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
+                    placeholder="cth: Kota Bandung"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Nama Ketua / Bidan PJ</label>
+                  <input
+                    type="text"
+                    value={posyanduForm.leaderName}
+                    onChange={(e) => setPosyanduForm({ ...posyanduForm, leaderName: e.target.value })}
+                    className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
+                    placeholder="cth: Bidan Siti Rahma, S.ST"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Nomor HP / WhatsApp Posyandu</label>
+                  <input
+                    type="tel"
+                    value={posyanduForm.contactPhone}
+                    onChange={(e) => setPosyanduForm({ ...posyanduForm, contactPhone: e.target.value })}
+                    className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
+                    placeholder="cth: 081234567890"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Alamat Posyandu / Balai RW</label>
+                  <input
+                    type="text"
+                    value={posyanduForm.address}
+                    onChange={(e) => setPosyanduForm({ ...posyanduForm, address: e.target.value })}
+                    className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
+                    placeholder="cth: Balai Warga RW 05, Jl. Melati No. 12"
+                  />
+                </div>
+              </div>
+
+              {/* Initial Admin Credentials Section (only when creating new) */}
+              {!editingPosyanduId && (
+                <div className="border-t border-slate-200 pt-3">
+                  <h4 className="text-xs font-bold text-[#0F5132] flex items-center gap-1.5">
+                    <span>🔐 Buat Kredensial Admin Posyandu Perdana (Opsional)</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Admin Posyandu dapat login ke dashboard ini dan melihat hanya data anak/keluarga yang terdaftar di posyandu ini.
+                  </p>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700">Email Login Petugas</label>
+                      <input
+                        type="email"
+                        value={posyanduForm.adminEmail}
+                        onChange={(e) => setPosyanduForm({ ...posyanduForm, adminEmail: e.target.value })}
+                        className="mt-1 w-full rounded border border-slate-300 p-2 text-xs"
+                        placeholder="cth: posyandu.melati@sicehat.id"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700">Kata Sandi Default</label>
+                      <input
+                        type="password"
+                        value={posyanduForm.adminPassword}
+                        onChange={(e) => setPosyanduForm({ ...posyanduForm, adminPassword: e.target.value })}
+                        className="mt-1 w-full rounded border border-slate-300 p-2 text-xs"
+                        placeholder="Minimal 6 karakter"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 border-t border-[#F1F5F9] pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPosyanduModal(false)}
+                  className="rounded border border-[#CBD5E1] px-4 py-2 text-xs font-bold text-[#64748B]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={posyanduSaving}
+                  className="rounded bg-[#0F5132] px-5 py-2 text-xs font-bold text-white hover:bg-[#146C43] disabled:opacity-50"
+                >
+                  {posyanduSaving ? "Menyimpan..." : "Simpan Data Posyandu"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: TAMBAH KREDENSIAL LOGIN ADMIN POSYANDU              */}
+      {/* ========================================================= */}
+      {adminModalPosyandu && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+              <div>
+                <h3 className="text-base font-black text-[#0F5132]">Tambah Kredensial Petugas</h3>
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  Posyandu: <strong>{adminModalPosyandu.name}</strong> ({adminModalPosyandu.code})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdminModalPosyandu(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAdminAccount} className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-[#0F172A]">Nama Petugas</label>
+                <input
+                  type="text"
+                  required
+                  value={newAdminForm.name}
+                  onChange={(e) => setNewAdminForm({ ...newAdminForm, name: e.target.value })}
+                  className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
+                  placeholder="cth: Bidan Siti"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#0F172A]">Email Login Petugas *</label>
+                <input
+                  type="email"
+                  required
+                  value={newAdminForm.email}
+                  onChange={(e) => setNewAdminForm({ ...newAdminForm, email: e.target.value })}
+                  className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
+                  placeholder="cth: petugas.melati@sicehat.id"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#0F172A]">Kata Sandi Login *</label>
+                <input
+                  type="password"
+                  required
+                  value={newAdminForm.password}
+                  onChange={(e) => setNewAdminForm({ ...newAdminForm, password: e.target.value })}
+                  className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
+                  placeholder="Minimal 6 karakter"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#0F172A]">Nomor Telepon / WA (Opsional)</label>
+                <input
+                  type="tel"
+                  value={newAdminForm.phone}
+                  onChange={(e) => setNewAdminForm({ ...newAdminForm, phone: e.target.value })}
+                  className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
+                  placeholder="cth: 08123456789"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-[#F1F5F9] pt-3">
+                <button
+                  type="button"
+                  onClick={() => setAdminModalPosyandu(null)}
+                  className="rounded border border-[#CBD5E1] px-4 py-2 text-xs font-bold text-[#64748B]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={adminSaving}
+                  className="rounded bg-[#0F5132] px-5 py-2 text-xs font-bold text-white hover:bg-[#146C43] disabled:opacity-50"
+                >
+                  {adminSaving ? "Membuat Akun..." : "Buat Akun Petugas"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: ALOKASIKAN KELUARGA KE POSYANDU                     */}
+      {/* ========================================================= */}
+      {assignFamilyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+              <div>
+                <h3 className="text-base font-black text-[#0F5132]">Petakan Keluarga ke Posyandu</h3>
+                <p className="text-xs text-[#64748B] mt-0.5">
+                  Ibu / Wali: <strong>{assignFamilyModal.name || "Ibu"}</strong> ({assignFamilyModal.email})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssignFamilyModal(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleAssignFamilyPosyandu} className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#0F172A]">Pilih Posyandu Pembina</label>
+                <select
+                  value={selectedAssignPosyanduId}
+                  onChange={(e) => setSelectedAssignPosyanduId(e.target.value)}
+                  className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs bg-white font-medium"
+                >
+                  <option value="">-- Belum Dialokasikan / Lepas Posyandu --</option>
+                  {posyandus.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.code}) — RW {p.rw || "-"}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1.5 text-[11px] text-slate-500">
+                  Keluarga ini dan seluruh riwayat skrining anak akan terlihat oleh Admin Posyandu yang dipilih.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-[#F1F5F9] pt-3">
+                <button
+                  type="button"
+                  onClick={() => setAssignFamilyModal(null)}
+                  className="rounded border border-[#CBD5E1] px-4 py-2 text-xs font-bold text-[#64748B]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={assignSaving}
+                  className="rounded bg-[#0F5132] px-5 py-2 text-xs font-bold text-white hover:bg-[#146C43] disabled:opacity-50"
+                >
+                  {assignSaving ? "Menyimpan..." : "Simpan Pemetaan"}
                 </button>
               </div>
             </form>
