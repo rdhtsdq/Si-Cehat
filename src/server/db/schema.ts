@@ -42,6 +42,7 @@ export const guardians = pgTable("Guardian", {
   occupation: text("occupation"),
   address: text("address"),
   role: text("role").notNull().default("GUARDIAN"),
+  avatarUrl: text("avatarUrl"),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 });
 
@@ -59,6 +60,7 @@ export const children = pgTable("Child", {
   gender: text("gender"),
   healthHistory: text("healthHistory"),
   avatarPreference: text("avatarPreference"),
+  avatarUrl: text("avatarUrl"),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 });
 

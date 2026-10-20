@@ -26,6 +26,12 @@ const updateProfileSchema = z.object({
   education: z.string().trim().max(60).optional(),
   occupation: z.string().trim().max(60).optional(),
   address: z.string().trim().max(255).optional(),
+  avatarUrl: z.string().optional(),
+});
+
+const avatarUploadSchema = z.object({
+  avatarUrl: z.string().optional(),
+  imageBase64: z.string().optional(),
 });
 
 parentRoutes.get("/parent/profile", async (c) => {
@@ -45,6 +51,7 @@ parentRoutes.get("/parent/profile", async (c) => {
         occupation: guardians.occupation,
         address: guardians.address,
         role: guardians.role,
+        avatarUrl: guardians.avatarUrl,
         createdAt: guardians.createdAt,
       })
       .from(guardians)
@@ -97,6 +104,7 @@ parentRoutes.put("/parent/profile", async (c) => {
         occupation: guardians.occupation,
         address: guardians.address,
         role: guardians.role,
+        avatarUrl: guardians.avatarUrl,
       });
 
     return c.json({ success: true, profile: updated });
@@ -106,6 +114,37 @@ parentRoutes.put("/parent/profile", async (c) => {
       { error: { message: "Gagal menyimpan perubahan profil ibu." } },
       500
     );
+  }
+});
+
+parentRoutes.post("/parent/profile/avatar", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  const json = await c.req.json().catch(() => null);
+  const parsed = avatarUploadSchema.safeParse(json);
+  if (!parsed.success) {
+    return c.json({ error: { message: "Data avatar tidak valid." } }, 400);
+  }
+
+  let finalUrl = parsed.data.avatarUrl || "";
+  if (parsed.data.imageBase64) {
+    const raw = parsed.data.imageBase64;
+    finalUrl = raw.startsWith("data:") ? raw : `data:image/jpeg;base64,${raw}`;
+  }
+
+  try {
+    await drizzleDb
+      .update(guardians)
+      .set({ avatarUrl: finalUrl })
+      .where(eq(guardians.id, session.user.id));
+
+    return c.json({ success: true, avatarUrl: finalUrl });
+  } catch (error) {
+    console.error("Save guardian avatar error:", error);
+    return c.json({ error: { message: "Gagal menyimpan avatar profil." } }, 500);
   }
 });
 
@@ -128,6 +167,7 @@ const updateChildSchema = z.object({
     .optional(),
   gender: z.enum(["MALE", "FEMALE"]).optional(),
   healthHistory: z.string().trim().max(500).optional(),
+  avatarUrl: z.string().optional(),
 });
 
 parentRoutes.get("/children", async (c) => {
@@ -285,13 +325,14 @@ parentRoutes.put("/children/:id", async (c) => {
       return c.json({ error: { message: "Akses ditolak." } }, 403);
     }
 
-    const { name, birthDate, gender, healthHistory } = parsed.data;
+    const { name, birthDate, gender, healthHistory, avatarUrl } = parsed.data;
     const updatePayload: Record<string, unknown> = {};
     if (name !== undefined) updatePayload.name = name;
     if (birthDate !== undefined)
       updatePayload.birthDate = new Date(`${birthDate.slice(0, 10)}T00:00:00.000Z`);
     if (gender !== undefined) updatePayload.gender = gender;
     if (healthHistory !== undefined) updatePayload.healthHistory = healthHistory;
+    if (avatarUrl !== undefined) updatePayload.avatarUrl = avatarUrl;
 
     const [updated] = await drizzleDb
       .update(children)
@@ -303,6 +344,53 @@ parentRoutes.put("/children/:id", async (c) => {
   } catch (error) {
     console.error("Update child error:", error);
     return c.json({ error: { message: "Gagal memperbarui data anak." } }, 500);
+  }
+});
+
+parentRoutes.post("/children/:id/avatar", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  const id = c.req.param("id");
+  const json = await c.req.json().catch(() => null);
+  const parsed = avatarUploadSchema.safeParse(json);
+  if (!parsed.success) {
+    return c.json({ error: { message: "Data avatar tidak valid." } }, 400);
+  }
+
+  let finalUrl = parsed.data.avatarUrl || "";
+  if (parsed.data.imageBase64) {
+    const raw = parsed.data.imageBase64;
+    finalUrl = raw.startsWith("data:") ? raw : `data:image/jpeg;base64,${raw}`;
+  }
+
+  try {
+    const [existing] = await drizzleDb
+      .select({ guardianId: children.guardianId })
+      .from(children)
+      .where(eq(children.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return c.json({ error: { message: "Data anak tidak ditemukan." } }, 404);
+    }
+
+    if (session.user.role !== "ADMIN" && existing.guardianId !== session.user.id) {
+      return c.json({ error: { message: "Akses ditolak." } }, 403);
+    }
+
+    const [updated] = await drizzleDb
+      .update(children)
+      .set({ avatarUrl: finalUrl })
+      .where(eq(children.id, id))
+      .returning();
+
+    return c.json({ success: true, avatarUrl: finalUrl, child: updated });
+  } catch (error) {
+    console.error("Save child avatar error:", error);
+    return c.json({ error: { message: "Gagal menyimpan avatar anak." } }, 500);
   }
 });
 
