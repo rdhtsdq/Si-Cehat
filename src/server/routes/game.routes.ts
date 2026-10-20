@@ -16,6 +16,13 @@ import { getSession } from "../middleware/auth";
 
 export const gameRoutes = new Hono();
 
+// Ephemeral single-use bootstrap tokens for secure WebView initialization (TTL: 60s)
+interface BootstrapRecord {
+  sessionId: string;
+  expiresAt: number;
+}
+const bootstrapTokenStore = new Map<string, BootstrapRecord>();
+
 // Food item definitions for server-side evaluation of Piring Sehat Nimbo
 export const FOOD_ITEMS_MAP: Record<
   string,
@@ -171,6 +178,13 @@ gameRoutes.post(
         }),
       });
 
+      // Generate short-lived, single-use bootstrap token (TTL: 60s)
+      const bootstrapToken = crypto.randomUUID();
+      bootstrapTokenStore.set(bootstrapToken, {
+        sessionId: session.id,
+        expiresAt: Date.now() + 60 * 1000,
+      });
+
       return c.json({
         success: true,
         session: {
@@ -181,10 +195,62 @@ gameRoutes.post(
           status: session.status,
           startedAt: session.startedAt,
         },
+        bootstrapToken,
       }, 201);
     } catch (error) {
       console.error("[PlayLab] Create session error:", error);
       return c.json({ error: { message: "Gagal membuat sesi permainan." } }, 500);
+    }
+  }
+);
+
+/**
+ * 2b. POST /api/game-sessions/bootstrap/exchange - Exchange bootstrap token for session authorization
+ */
+gameRoutes.post(
+  "/game-sessions/bootstrap/exchange",
+  zValidator(
+    "json",
+    z.object({
+      bootstrapToken: z.string().trim().min(1),
+    })
+  ),
+  async (c) => {
+    const { bootstrapToken } = c.req.valid("json");
+    const record = bootstrapTokenStore.get(bootstrapToken);
+
+    if (!record || record.expiresAt < Date.now()) {
+      bootstrapTokenStore.delete(bootstrapToken);
+      return c.json({ error: { message: "Token bootstrap tidak valid atau telah kadaluarsa." } }, 400);
+    }
+
+    // Invalidate immediately (single-use)
+    bootstrapTokenStore.delete(bootstrapToken);
+
+    try {
+      const [session] = await drizzleDb
+        .select()
+        .from(gameSessions)
+        .where(eq(gameSessions.id, record.sessionId));
+
+      if (!session) {
+        return c.json({ error: { message: "Sesi permainan tidak ditemukan." } }, 404);
+      }
+
+      return c.json({
+        success: true,
+        session: {
+          id: session.id,
+          gameSlug: session.gameSlug,
+          gameVersion: session.gameVersion,
+          status: session.status,
+          childId: session.childId,
+        },
+        sessionAuthToken: session.id,
+      });
+    } catch (error) {
+      console.error("[PlayLab] Bootstrap exchange error:", error);
+      return c.json({ error: { message: "Gagal menukar token bootstrap." } }, 500);
     }
   }
 );

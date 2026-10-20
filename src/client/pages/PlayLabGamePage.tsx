@@ -1,25 +1,25 @@
 import React, { useState, useEffect } from "react";
 import { useSearch } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
+import { AvatarRenderer } from "@/components/AvatarRenderer";
 
 interface FoodItem {
   id: string;
   name: string;
-  emoji: string;
   category: "karbo" | "protein" | "sayur" | "buah" | "distractor";
   color: string;
 }
 
 const FOODS: FoodItem[] = [
-  { id: "nasi-merah", name: "Nasi", emoji: "🍚", category: "karbo", color: "#fef3c7" },
-  { id: "kentang-rebus", name: "Kentang", emoji: "🥔", category: "karbo", color: "#fef3c7" },
-  { id: "bayam-bening", name: "Bayam", emoji: "🥬", category: "sayur", color: "#dcfce7" },
-  { id: "wortel-rebus", name: "Wortel", emoji: "🥕", category: "sayur", color: "#dcfce7" },
-  { id: "ikan-bakar", name: "Ikan", emoji: "🐟", category: "protein", color: "#dbeafe" },
-  { id: "telur-rebus", name: "Telur", emoji: "🥚", category: "protein", color: "#dbeafe" },
-  { id: "pisang-barangan", name: "Pisang", emoji: "🍌", category: "buah", color: "#ffedd5" },
-  { id: "apel-segar", name: "Apel", emoji: "🍎", category: "buah", color: "#ffedd5" },
-  { id: "donat-cokelat", name: "Donat Gula", emoji: "🍩", category: "distractor", color: "#fee2e2" },
+  { id: "nasi-merah", name: "Nasi Merah", category: "karbo", color: "#fef3c7" },
+  { id: "kentang-rebus", name: "Kentang Rebus", category: "karbo", color: "#fef3c7" },
+  { id: "bayam-bening", name: "Sayur Bayam", category: "sayur", color: "#dcfce7" },
+  { id: "wortel-rebus", name: "Wortel Manis", category: "sayur", color: "#dcfce7" },
+  { id: "ikan-bakar", name: "Ikan Bakar", category: "protein", color: "#dbeafe" },
+  { id: "telur-rebus", name: "Telur Rebus", category: "protein", color: "#dbeafe" },
+  { id: "pisang-barangan", name: "Pisang Barangan", category: "buah", color: "#ffedd5" },
+  { id: "apel-segar", name: "Apel Renyah", category: "buah", color: "#ffedd5" },
+  { id: "donat-cokelat", name: "Donat Gula", category: "distractor", color: "#fee2e2" },
 ];
 
 export default function PlayLabGamePage() {
@@ -199,7 +199,6 @@ export default function PlayLabGamePage() {
           onClick={handleExit}
           className="flex items-center gap-1.5 rounded-full border-2 border-[#173d31] bg-white px-3.5 py-1.5 text-xs font-black shadow-[2px_2px_0_#173d31] transition active:translate-y-0.5 active:shadow-none"
         >
-          <span>✕</span>
           <span>Keluar</span>
         </button>
 
@@ -208,7 +207,6 @@ export default function PlayLabGamePage() {
         </span>
 
         <div className="flex items-center gap-1 rounded-full border-2 border-[#173d31] bg-[#f4b942] px-3 py-1 text-xs font-black">
-          <span>✨</span>
           <span>+75 XP</span>
         </div>
       </header>
@@ -217,10 +215,14 @@ export default function PlayLabGamePage() {
       <div className="my-auto mx-auto w-full max-w-md py-2">
         {/* Nimbo Mascot Bubble */}
         <div className="mb-3 flex items-center gap-2.5 rounded-2xl border-2 border-[#173d31] bg-white p-2.5 shadow-[2px_3px_0_#173d31]">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border-2 border-[#173d31] bg-[#75c8e8] text-xl">
-            {nimboMood === "happy" && "😺"}
-            {nimboMood === "excited" && "🎉"}
-            {nimboMood === "thinking" && "🧐"}
+          <div className="shrink-0 overflow-hidden rounded-xl border-2 border-[#173d31] bg-[#75c8e8]">
+            <AvatarRenderer
+              character="default"
+              accessory="none"
+              orbColor="#3b9d75"
+              state={nimboMood === "thinking" ? "thinking" : nimboMood === "excited" ? "happy" : "idle"}
+              className="h-10 w-10"
+            />
           </div>
           <p className="text-xs font-bold leading-tight text-[#173d31]">
             {nimboSpeech}
@@ -238,11 +240,14 @@ export default function PlayLabGamePage() {
                   onClick={() => selectedKarbo && setSelectedKarbo(null)}
                   className="flex flex-col items-center justify-center rounded-tl-full border-2 border-[#f59e0b] bg-[#fef3c7] p-1 text-center cursor-pointer transition active:scale-95"
                 >
-                  <span className="text-2xl">{selectedKarbo ? selectedKarbo.emoji : "🍚"}</span>
                   <span className="text-[11px] font-black text-[#92400e]">
-                    {selectedKarbo ? selectedKarbo.name : "Karbo"}
+                    {selectedKarbo ? selectedKarbo.name : "Karbohidrat"}
                   </span>
-                  {selectedKarbo && <span className="text-[9px] text-[#15803d]">✓ Lengkap</span>}
+                  {selectedKarbo ? (
+                    <span className="text-[9px] text-[#15803d] font-bold">Lengkap</span>
+                  ) : (
+                    <span className="text-[8px] text-[#92400e]/60">1/3 piring</span>
+                  )}
                 </div>
 
                 {/* Sayuran */}
@@ -250,11 +255,14 @@ export default function PlayLabGamePage() {
                   onClick={() => selectedSayur && setSelectedSayur(null)}
                   className="flex flex-col items-center justify-center rounded-tr-full border-2 border-[#16a34a] bg-[#dcfce7] p-1 text-center cursor-pointer transition active:scale-95"
                 >
-                  <span className="text-2xl">{selectedSayur ? selectedSayur.emoji : "🥬"}</span>
                   <span className="text-[11px] font-black text-[#166534]">
-                    {selectedSayur ? selectedSayur.name : "Sayur"}
+                    {selectedSayur ? selectedSayur.name : "Sayuran"}
                   </span>
-                  {selectedSayur && <span className="text-[9px] text-[#15803d]">✓ Lengkap</span>}
+                  {selectedSayur ? (
+                    <span className="text-[9px] text-[#15803d] font-bold">Lengkap</span>
+                  ) : (
+                    <span className="text-[8px] text-[#166534]/60">1/3 piring</span>
+                  )}
                 </div>
 
                 {/* Protein */}
@@ -262,11 +270,14 @@ export default function PlayLabGamePage() {
                   onClick={() => selectedProtein && setSelectedProtein(null)}
                   className="flex flex-col items-center justify-center rounded-bl-full border-2 border-[#2563eb] bg-[#dbeafe] p-1 text-center cursor-pointer transition active:scale-95"
                 >
-                  <span className="text-2xl">{selectedProtein ? selectedProtein.emoji : "🐟"}</span>
                   <span className="text-[11px] font-black text-[#1e40af]">
-                    {selectedProtein ? selectedProtein.name : "Lauk"}
+                    {selectedProtein ? selectedProtein.name : "Lauk Pauk"}
                   </span>
-                  {selectedProtein && <span className="text-[9px] text-[#15803d]">✓ Lengkap</span>}
+                  {selectedProtein ? (
+                    <span className="text-[9px] text-[#15803d] font-bold">Lengkap</span>
+                  ) : (
+                    <span className="text-[8px] text-[#1e40af]/60">1/6 piring</span>
+                  )}
                 </div>
 
                 {/* Buah */}
@@ -274,11 +285,14 @@ export default function PlayLabGamePage() {
                   onClick={() => selectedBuah && setSelectedBuah(null)}
                   className="flex flex-col items-center justify-center rounded-br-full border-2 border-[#ea580c] bg-[#ffedd5] p-1 text-center cursor-pointer transition active:scale-95"
                 >
-                  <span className="text-2xl">{selectedBuah ? selectedBuah.emoji : "🍎"}</span>
                   <span className="text-[11px] font-black text-[#9a3412]">
-                    {selectedBuah ? selectedBuah.name : "Buah"}
+                    {selectedBuah ? selectedBuah.name : "Buah Segar"}
                   </span>
-                  {selectedBuah && <span className="text-[9px] text-[#15803d]">✓ Lengkap</span>}
+                  {selectedBuah ? (
+                    <span className="text-[9px] text-[#15803d] font-bold">Lengkap</span>
+                  ) : (
+                    <span className="text-[8px] text-[#9a3412]/60">1/6 piring</span>
+                  )}
                 </div>
               </div>
 
@@ -296,7 +310,7 @@ export default function PlayLabGamePage() {
                 onClick={handleCompletePlate}
                 className="mt-3.5 w-full rounded-2xl border-2 border-[#173d31] bg-[#247a4d] py-2.5 text-xs font-black text-white shadow-[2px_3px_0_#173d31] transition active:translate-y-0.5 active:shadow-none sm:text-sm"
               >
-                Piring Lengkap! Lanjut Kuis 👉
+                Piring Lengkap! Lanjut Kuis
               </motion.button>
             ) : (
               <p className="mt-2 text-center text-[10px] font-bold text-[#285648]/80">
@@ -310,11 +324,13 @@ export default function PlayLabGamePage() {
                 <button
                   key={food.id}
                   onClick={() => handleSelectFood(food)}
-                  className="flex flex-col items-center justify-center rounded-xl border-2 border-[#173d31] p-1.5 text-center shadow-[1px_2px_0_#173d31] transition active:translate-y-0.5 active:shadow-none"
+                  className="flex flex-col items-center justify-center rounded-xl border-2 border-[#173d31] p-2 text-center shadow-[1px_2px_0_#173d31] transition active:translate-y-0.5 active:shadow-none"
                   style={{ backgroundColor: food.color }}
                 >
-                  <span className="text-2xl">{food.emoji}</span>
-                  <span className="mt-0.5 text-[10px] font-black truncate w-full">{food.name}</span>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-[#173d31]/70">
+                    {food.category === "distractor" ? "Camilan" : food.category}
+                  </span>
+                  <span className="mt-0.5 text-[11px] font-black truncate w-full">{food.name}</span>
                 </button>
               ))}
             </div>
@@ -343,7 +359,7 @@ export default function PlayLabGamePage() {
                   selectedAnswer === "setengah_piring" ? "bg-[#dcfce7] font-black text-[#15803d]" : "bg-white"
                 }`}
               >
-                🥗 1/2 Piring (Separuh piring penuh sayur & buah)
+                1/2 Piring (Separuh piring penuh sayur & buah)
               </button>
 
               <button
@@ -353,13 +369,13 @@ export default function PlayLabGamePage() {
                   selectedAnswer === "sedikit_saja" ? "bg-[#fee2e2] font-black text-[#991b1b]" : "bg-white"
                 }`}
               >
-                🥄 Sedikit saja, cuma 1 sendok kecil
+                Sedikit saja, cuma 1 sendok kecil
               </button>
             </div>
 
             {selectedAnswer && (
               <p className="mt-3 text-center text-xs font-black text-[#247a4d]">
-                Menghitung skor bintang... ✨
+                Menghitung skor evaluasi...
               </p>
             )}
           </motion.div>
@@ -372,7 +388,20 @@ export default function PlayLabGamePage() {
             animate={{ scale: 1, opacity: 1 }}
             className="rounded-2xl border-2 border-[#173d31] bg-white p-5 text-center shadow-[3px_4px_0_#173d31]"
           >
-            <div className="text-3xl">⭐⭐⭐</div>
+            <div className="flex justify-center gap-1.5 mb-1">
+              {[1, 2, 3].map((star) => (
+                <svg
+                  key={star}
+                  viewBox="0 0 24 24"
+                  className="w-8 h-8 fill-amber-400 stroke-amber-600"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                </svg>
+              ))}
+            </div>
             <h1 className="mt-2 text-xl font-black">Hebat Sekali!</h1>
             <p className="text-xs font-bold text-[#285648]">
               Kamu berhasil menyusun Isi Piringku yang seimbang!
@@ -398,7 +427,7 @@ export default function PlayLabGamePage() {
                 onClick={handleExit}
                 className="w-full rounded-xl border-2 border-[#173d31] bg-[#247a4d] py-3 text-xs font-black text-white shadow-[2px_3px_0_#173d31] transition active:translate-y-0.5 active:shadow-none"
               >
-                Selesai & Keluar ke Menu Utama ✅
+                Selesai & Keluar ke Menu Utama
               </button>
 
               <button
@@ -414,7 +443,7 @@ export default function PlayLabGamePage() {
                 }}
                 className="w-full rounded-xl border border-[#173d31] bg-white py-2 text-xs font-bold"
               >
-                Main Lagi 🔄
+                Main Lagi
               </button>
             </div>
           </motion.div>
