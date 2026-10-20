@@ -1842,7 +1842,7 @@ export default function AdminDashboardClient({
                                   key={adm.id}
                                   className="inline-flex items-center gap-1 rounded bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] text-blue-900 font-mono mr-1 mb-1"
                                 >
-                                  <span>👤 {adm.email}</span>
+                                  <span>{adm.email}</span>
                                 </div>
                               ))
                             ) : (
@@ -2042,7 +2042,7 @@ export default function AdminDashboardClient({
                         articleCategoryFilter === cat ? "bg-[#0F5132] text-white font-bold" : "text-[#64748B] hover:text-black"
                       }`}
                     >
-                      {cat === "video" ? "🎬 Video" : cat === "podcast" ? "🎙️ Podcast" : cat === "makanan" ? "🥗 Gizi" : cat === "artikel" ? "📄 Artikel" : "Semua"}
+                      {cat === "video" ? "Video" : cat === "podcast" ? "Podcast" : cat === "makanan" ? "Gizi" : cat === "artikel" ? "Artikel" : "Semua"}
                     </button>
                   ))}
                 </div>
@@ -2093,7 +2093,7 @@ export default function AdminDashboardClient({
                           <span className="font-mono text-[11px] text-[#64748B]">/{a.slug}</span>
                           {a.speakerOrSource && (
                             <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium">
-                              👤 {a.speakerOrSource}
+                              {a.speakerOrSource}
                             </span>
                           )}
                         </div>
@@ -2111,22 +2111,22 @@ export default function AdminDashboardClient({
                                 : "bg-emerald-100 text-emerald-800"
                             }`}
                           >
-                            {a.category === "video" ? "🎬 Video" : a.category === "podcast" ? "🎙️ Podcast" : a.category}
+                            {a.category}
                           </span>
                           {a.videoUrl && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                              ▶️ {a.videoUrl.includes("youtu") ? "YouTube" : "Direct Video"}
+                              {a.videoUrl.includes("youtu") ? "YouTube" : "Video MP4"}
                             </span>
                           )}
                           {a.audioUrl && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                              🔊 {a.audioUrl.includes("spotify") ? "Spotify" : "MP3 Stream"}
+                              {a.audioUrl.includes("spotify") ? "Spotify" : "Audio MP3"}
                             </span>
                           )}
                         </div>
                       </td>
                       <td className="py-3 px-4 text-[#64748B] font-mono whitespace-nowrap">
-                        ⏱️ {a.readTimeMinutes} menit
+                        {a.readTimeMinutes} menit
                       </td>
                       <td className="py-3 px-4 text-[#64748B] max-w-sm line-clamp-2">{a.summary}</td>
                       <td className="py-3 px-4 text-right whitespace-nowrap space-x-2">
@@ -3041,10 +3041,10 @@ export default function AdminDashboardClient({
                     }}
                     className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs bg-white font-semibold text-emerald-900"
                   >
-                    <option value="artikel">📄 Artikel Bacaan</option>
-                    <option value="makanan">🥗 Gizi & Pangan Sehat</option>
-                    <option value="video">🎬 Video Edukasi</option>
-                    <option value="podcast">🎙️ Podcast Audio</option>
+                    <option value="artikel">Artikel Bacaan</option>
+                    <option value="makanan">Gizi & Pangan Sehat</option>
+                    <option value="video">Video Edukasi</option>
+                    <option value="podcast">Podcast Audio</option>
                   </select>
                 </div>
               </div>
@@ -3089,7 +3089,7 @@ export default function AdminDashboardClient({
                 <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-3.5 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
-                      🎬 Konfigurasi Media Video
+                      Konfigurasi Media Video
                     </span>
                     <div className="flex gap-2">
                       <label className="text-[11px] font-semibold text-purple-800 flex items-center gap-1 cursor-pointer">
@@ -3161,7 +3161,7 @@ export default function AdminDashboardClient({
                 <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3.5 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                      🎙️ Konfigurasi Media Podcast
+                      Konfigurasi Media Podcast
                     </span>
                     <div className="flex gap-2">
                       <label className="text-[11px] font-semibold text-amber-900 flex items-center gap-1 cursor-pointer">
