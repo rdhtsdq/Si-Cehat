@@ -116,6 +116,20 @@ export const growthMeasurements = pgTable("GrowthMeasurement", {
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 });
 
+export const activityLogs = pgTable("ActivityLog", {
+  id: text("id").primaryKey().$defaultFn(uuidDefault),
+  childId: text("childId")
+    .notNull()
+    .references(() => children.id, { onDelete: "restrict", onUpdate: "cascade" }),
+  date: timestamp("date", { mode: "date" }).notNull(),
+  title: text("title").notNull(),
+  category: text("category").notNull().default("Aktivitas Fisik"),
+  durationMinutes: integer("durationMinutes").notNull().default(0),
+  intensity: text("intensity").default("Sedang"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+});
+
 export const screeningRecords = pgTable("ScreeningRecord", {
   id: text("id").primaryKey().$defaultFn(uuidDefault),
   childId: text("childId")
@@ -289,6 +303,14 @@ export const childrenRelations = relations(children, ({ one, many }) => ({
   screenings: many(screeningRecords),
   chatSessions: many(chatSessions),
   reminders: many(reminders),
+  activityLogs: many(activityLogs),
+}));
+
+export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
+  child: one(children, {
+    fields: [activityLogs.childId],
+    references: [children.id],
+  }),
 }));
 
 export const dailyProgressesRelations = relations(dailyProgresses, ({ one }) => ({

@@ -7,6 +7,7 @@ import {
   children,
   dailyProgresses,
   growthMeasurements,
+  activityLogs,
   screeningRecords,
   detailedFoodLogs,
   recipes,
@@ -767,6 +768,239 @@ parentRoutes.post("/tracker/growth", async (c) => {
       { error: { message: "Gagal menyimpan data pengukuran." } },
       500
     );
+  }
+});
+
+// 4b. GET, POST, DELETE /api/tracker/activities
+const createActivitySchema = z.object({
+  childId: z.string().min(1, "childId harus diisi"),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}/, "Format tanggal YYYY-MM-DD")
+    .optional(),
+  title: z.string().trim().min(2, "Judul aktivitas minimal 2 karakter"),
+  category: z.string().default("Aktivitas Fisik"),
+  durationMinutes: z.number().int().min(1).max(720).default(30),
+  intensity: z.enum(["Ringan", "Sedang", "Kuat"]).default("Sedang"),
+  notes: z.string().trim().optional(),
+});
+
+parentRoutes.get("/tracker/activities", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  const childIdParam = c.req.query("childId");
+  const dateParam = c.req.query("date") || new Date().toISOString().slice(0, 10);
+  const targetDate = new Date(`${dateParam.slice(0, 10)}T00:00:00.000Z`);
+
+  let childId = childIdParam;
+  if (!childId) {
+    const [first] = await drizzleDb
+      .select({ id: children.id })
+      .from(children)
+      .where(eq(children.guardianId, session.user.id))
+      .limit(1);
+    if (!first) return c.json({ activities: [], summary: null });
+    childId = first.id;
+  }
+
+  try {
+    const list = await drizzleDb
+      .select()
+      .from(activityLogs)
+      .where(
+        and(
+          eq(activityLogs.childId, childId),
+          eq(activityLogs.date, targetDate)
+        )
+      )
+      .orderBy(desc(activityLogs.createdAt));
+
+    const totalMinutes = list
+      .filter((a) => a.category === "Aktivitas Fisik")
+      .reduce((acc, curr) => acc + (curr.durationMinutes || 0), 0);
+
+    const [progress] = await drizzleDb
+      .select()
+      .from(dailyProgresses)
+      .where(
+        and(
+          eq(dailyProgresses.childId, childId),
+          eq(dailyProgresses.date, targetDate)
+        )
+      )
+      .limit(1);
+
+    const waterGlasses = progress?.waterGlasses ?? 0;
+    const targetMinutes = 60;
+    let status = "Kurang Aktif";
+    if (totalMinutes >= 60) {
+      status = "Sangat Aktif";
+    } else if (totalMinutes >= 30) {
+      status = "Cukup Aktif";
+    }
+
+    return c.json({
+      activities: list.map((a) => ({
+        id: a.id,
+        childId: a.childId,
+        date: a.date.toISOString().slice(0, 10),
+        title: a.title,
+        category: a.category,
+        durationMinutes: a.durationMinutes,
+        intensity: a.intensity,
+        notes: a.notes,
+        createdAt: a.createdAt,
+      })),
+      summary: {
+        totalMinutes,
+        targetMinutes,
+        waterGlasses,
+        status,
+        percentage: Math.min(100, Math.round((totalMinutes / targetMinutes) * 100)),
+      },
+    });
+  } catch (error) {
+    console.error("Get activities error:", error);
+    return c.json({ error: { message: "Gagal memuat daftar aktivitas." } }, 500);
+  }
+});
+
+parentRoutes.post("/tracker/activities", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  const json = await c.req.json().catch(() => null);
+  const parsed = createActivitySchema.safeParse(json);
+  if (!parsed.success) {
+    return c.json(
+      { error: { message: parsed.error.issues[0]?.message || "Input aktivitas tidak valid." } },
+      400
+    );
+  }
+
+  const { childId, date, title, category, durationMinutes, intensity, notes } = parsed.data;
+  const dateStr = date || new Date().toISOString().slice(0, 10);
+  const targetDate = new Date(`${dateStr.slice(0, 10)}T00:00:00.000Z`);
+
+  try {
+    const [created] = await drizzleDb
+      .insert(activityLogs)
+      .values({
+        childId,
+        date: targetDate,
+        title,
+        category,
+        durationMinutes,
+        intensity,
+        notes: notes || null,
+      })
+      .returning();
+
+    // Update DailyProgress total activity minutes
+    const dayActivities = await drizzleDb
+      .select({ durationMinutes: activityLogs.durationMinutes })
+      .from(activityLogs)
+      .where(
+        and(
+          eq(activityLogs.childId, childId),
+          eq(activityLogs.date, targetDate),
+          eq(activityLogs.category, "Aktivitas Fisik")
+        )
+      );
+
+    const totalActiveMinutes = dayActivities.reduce((acc, curr) => acc + (curr.durationMinutes || 0), 0);
+
+    const [existingProgress] = await drizzleDb
+      .select({ id: dailyProgresses.id })
+      .from(dailyProgresses)
+      .where(
+        and(
+          eq(dailyProgresses.childId, childId),
+          eq(dailyProgresses.date, targetDate)
+        )
+      )
+      .limit(1);
+
+    if (existingProgress) {
+      await drizzleDb
+        .update(dailyProgresses)
+        .set({ activityMinutes: totalActiveMinutes })
+        .where(eq(dailyProgresses.id, existingProgress.id));
+    } else {
+      await drizzleDb.insert(dailyProgresses).values({
+        childId,
+        date: targetDate,
+        activityMinutes: totalActiveMinutes,
+      });
+    }
+
+    return c.json({
+      success: true,
+      activity: {
+        id: created.id,
+        childId: created.childId,
+        date: created.date.toISOString().slice(0, 10),
+        title: created.title,
+        category: created.category,
+        durationMinutes: created.durationMinutes,
+        intensity: created.intensity,
+        notes: created.notes,
+        createdAt: created.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error("Create activity error:", error);
+    return c.json({ error: { message: "Gagal menyimpan aktivitas." } }, 500);
+  }
+});
+
+parentRoutes.delete("/tracker/activities/:id", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  const id = c.req.param("id");
+  try {
+    const [deleted] = await drizzleDb
+      .delete(activityLogs)
+      .where(eq(activityLogs.id, id))
+      .returning();
+
+    if (deleted) {
+      const dayActivities = await drizzleDb
+        .select({ durationMinutes: activityLogs.durationMinutes })
+        .from(activityLogs)
+        .where(
+          and(
+            eq(activityLogs.childId, deleted.childId),
+            eq(activityLogs.date, deleted.date),
+            eq(activityLogs.category, "Aktivitas Fisik")
+          )
+        );
+
+      const totalActiveMinutes = dayActivities.reduce((acc, curr) => acc + (curr.durationMinutes || 0), 0);
+
+      await drizzleDb
+        .update(dailyProgresses)
+        .set({ activityMinutes: totalActiveMinutes })
+        .where(
+          and(
+            eq(dailyProgresses.childId, deleted.childId),
+            eq(dailyProgresses.date, deleted.date)
+          )
+        );
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Delete activity error:", error);
+    return c.json({ error: { message: "Gagal menghapus aktivitas." } }, 500);
   }
 });
 
