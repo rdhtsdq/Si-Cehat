@@ -43,11 +43,16 @@ export async function createSessionToken(user: SessionUser): Promise<string> {
 
 export function setSessionCookie(c: Context, token: string): void {
   const env = getServerEnv();
+  const isHttps =
+    c.req.header("x-forwarded-proto") === "https" ||
+    c.req.url.startsWith("https://");
+  const isSecure = env.NODE_ENV === "production" && isHttps;
+
   setCookie(c, SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "Lax",
     path: "/",
-    secure: env.NODE_ENV === "production",
+    secure: isSecure,
     maxAge: 60 * 60 * 24 * 7,
   });
 }
