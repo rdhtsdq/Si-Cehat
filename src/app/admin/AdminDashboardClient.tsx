@@ -1114,10 +1114,10 @@ export default function AdminDashboardClient({
                     onChange={(e) => handleFilterPosyanduChange(e.target.value)}
                     className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-[#0F5132] shadow-xs hover:border-[#0F5132] focus:border-[#0F5132] focus:outline-hidden"
                   >
-                    <option value="ALL">🏢 Semua Posyandu (Pusat)</option>
+                    <option value="ALL">Semua Posyandu (Pusat)</option>
                     {posyandus.map((p) => (
                       <option key={p.id} value={p.id}>
-                        📍 {p.name} ({p.code})
+                        {p.name} ({p.code})
                       </option>
                     ))}
                   </select>
@@ -1127,7 +1127,7 @@ export default function AdminDashboardClient({
               {/* Posyandu indicator badge */}
               {isPosyandu && (
                 <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 mr-1">
-                  <span>📍 {posyanduName || "Posyandu Wilayah"}</span>
+                  <span>{posyanduName || "Posyandu Wilayah"}</span>
                 </div>
               )}
 
@@ -2362,7 +2362,7 @@ export default function AdminDashboardClient({
                         {f.posyandu ? (
                           <div>
                             <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-800 border border-emerald-200">
-                              📍 {f.posyandu.name}
+                              {f.posyandu.name}
                             </span>
                             <p className="text-[10px] text-slate-500 font-mono mt-0.5">{f.posyandu.code}</p>
                           </div>
@@ -3504,7 +3504,7 @@ export default function AdminDashboardClient({
               {!editingPosyanduId && (
                 <div className="border-t border-slate-200 pt-3">
                   <h4 className="text-xs font-bold text-[#0F5132] flex items-center gap-1.5">
-                    <span>🔐 Buat Kredensial Admin Posyandu Perdana (Opsional)</span>
+                    <span>Buat Kredensial Admin Posyandu Perdana (Opsional)</span>
                   </h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">
                     Admin Posyandu dapat login ke dashboard ini dan melihat hanya data anak/keluarga yang terdaftar di posyandu ini.
