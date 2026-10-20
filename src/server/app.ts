@@ -9,6 +9,7 @@ import { authRoutes } from "./routes/auth.routes";
 import { publicRoutes } from "./routes/public.routes";
 import { parentRoutes } from "./routes/parent.routes";
 import { adminRoutes } from "./routes/admin.routes";
+import { gameRoutes } from "./routes/game.routes";
 
 export const apiApp = new Hono()
   .basePath("/api")
@@ -29,6 +30,7 @@ export const apiApp = new Hono()
   })
   .route("/auth", authRoutes)
   .route("/admin", adminRoutes)
+  .route("/", gameRoutes)
   .route("/", publicRoutes)
   .route("/", parentRoutes);
 

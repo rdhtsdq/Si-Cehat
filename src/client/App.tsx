@@ -10,6 +10,7 @@ const ParentPage = lazy(() => import("@/app/parent/page"));
 const AdminLoginPage = lazy(() => import("@/app/admin/login/page"));
 const AdminPage = lazy(() => import("@/client/pages/AdminPage"));
 const ApiDocsPage = lazy(() => import("@/app/api-docs/page"));
+const PlayLabGamePage = lazy(() => import("@/client/pages/PlayLabGamePage"));
 
 function RouteLoadingFallback() {
   return (
@@ -31,6 +32,9 @@ export function App() {
         <Route path="/parent" component={ParentPage} />
         <Route path="/admin/login" component={AdminLoginPage} />
         <Route path="/admin" component={AdminPage} />
+        <Route path="/playlab" component={PlayLabGamePage} />
+        <Route path="/playlab/piring-sehat" component={PlayLabGamePage} />
+        <Route path="/game/piring-sehat" component={PlayLabGamePage} />
         <Route path="/api-docs" component={ApiDocsPage} />
         <Route path="/docs" component={ApiDocsPage} />
         <Route>

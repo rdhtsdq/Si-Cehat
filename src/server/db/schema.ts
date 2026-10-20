@@ -387,3 +387,143 @@ export const chatMessagesRelations = relations(chatMessages, ({ one }) => ({
     references: [chatSessions.id],
   }),
 }));
+
+// ==========================================
+// SI-CEHAT PLAYLAB (WEB GAME & RESEARCH)
+// ==========================================
+
+export const gameDefinitions = pgTable("GameDefinition", {
+  id: text("id").primaryKey().$defaultFn(uuidDefault),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  competency: text("competency").notNull(),
+  currentVersion: text("currentVersion").notNull().default("1.0.0"),
+  targetAgeRange: text("targetAgeRange").notNull().default("6-12"),
+  isPublished: boolean("isPublished").notNull().default(true),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const gameSessions = pgTable("GameSession", {
+  id: text("id").primaryKey().$defaultFn(uuidDefault),
+  gameId: text("gameId").references(() => gameDefinitions.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+  gameSlug: text("gameSlug").notNull().default("piring-sehat-nimbo"),
+  gameVersion: text("gameVersion").notNull().default("1.0.0"),
+  guardianId: text("guardianId").references(() => guardians.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+  childId: text("childId").references(() => children.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+  studyId: text("studyId").default("si-cehat-playlab-eval-2026"),
+  participantCode: text("participantCode"),
+  status: text("status").notNull().default("IN_PROGRESS"), // IN_PROGRESS, COMPLETED, ABANDONED
+  startedAt: timestamp("startedAt", { mode: "date" }).notNull().defaultNow(),
+  completedAt: timestamp("completedAt", { mode: "date" }),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const gameEvents = pgTable("GameEvent", {
+  id: text("id").primaryKey().$defaultFn(uuidDefault),
+  sessionId: text("sessionId")
+    .notNull()
+    .references(() => gameSessions.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  eventType: text("eventType").notNull(), // GAME_START, ITEM_SELECTED, ITEM_PLACED, ITEM_REMOVED, PLATE_CHECKED, KNOWLEDGE_ANSWERED
+  sequence: integer("sequence").notNull().default(0),
+  payload: text("payload").notNull().default("{}"), // JSON stringified
+  occurredAt: timestamp("occurredAt", { mode: "date" }).notNull().defaultNow(),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const gameResults = pgTable("GameResult", {
+  id: text("id").primaryKey().$defaultFn(uuidDefault),
+  sessionId: text("sessionId")
+    .notNull()
+    .unique()
+    .references(() => gameSessions.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  gameplayScore: integer("gameplayScore").notNull().default(0),
+  knowledgeScore: integer("knowledgeScore").notNull().default(0),
+  totalScore: integer("totalScore").notNull().default(0),
+  starsEarned: integer("starsEarned").notNull().default(1),
+  plateComposition: text("plateComposition").notNull().default("{}"), // JSON stringified
+  feedbackSummary: text("feedbackSummary").notNull().default(""),
+  rulesVersion: text("rulesVersion").notNull().default("1.0.0"),
+  xpAwarded: integer("xpAwarded").notNull().default(50),
+  finalizedAt: timestamp("finalizedAt", { mode: "date" }).notNull().defaultNow(),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const assessmentAttempts = pgTable("AssessmentAttempt", {
+  id: text("id").primaryKey().$defaultFn(uuidDefault),
+  guardianId: text("guardianId").references(() => guardians.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+  childId: text("childId").references(() => children.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+  studyId: text("studyId").notNull().default("si-cehat-playlab-eval-2026"),
+  participantCode: text("participantCode"),
+  assessmentType: text("assessmentType").notNull().default("PRE_TEST"), // PRE_TEST, POST_TEST, FOLLOW_UP
+  instrumentVersion: text("instrumentVersion").notNull().default("1.0.0"),
+  score: integer("score").notNull().default(0),
+  maxScore: integer("maxScore").notNull().default(100),
+  answers: text("answers").notNull().default("[]"), // JSON stringified array
+  completedAt: timestamp("completedAt", { mode: "date" }).notNull().defaultNow(),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const gameSessionsRelations = relations(gameSessions, ({ one, many }) => ({
+  game: one(gameDefinitions, {
+    fields: [gameSessions.gameId],
+    references: [gameDefinitions.id],
+  }),
+  guardian: one(guardians, {
+    fields: [gameSessions.guardianId],
+    references: [guardians.id],
+  }),
+  child: one(children, {
+    fields: [gameSessions.childId],
+    references: [children.id],
+  }),
+  events: many(gameEvents),
+  result: one(gameResults, {
+    fields: [gameSessions.id],
+    references: [gameResults.sessionId],
+  }),
+}));
+
+export const gameEventsRelations = relations(gameEvents, ({ one }) => ({
+  session: one(gameSessions, {
+    fields: [gameEvents.sessionId],
+    references: [gameSessions.id],
+  }),
+}));
+
+export const gameResultsRelations = relations(gameResults, ({ one }) => ({
+  session: one(gameSessions, {
+    fields: [gameResults.sessionId],
+    references: [gameSessions.id],
+  }),
+}));
+
+export const assessmentAttemptsRelations = relations(assessmentAttempts, ({ one }) => ({
+  guardian: one(guardians, {
+    fields: [assessmentAttempts.guardianId],
+    references: [guardians.id],
+  }),
+  child: one(children, {
+    fields: [assessmentAttempts.childId],
+    references: [children.id],
+  }),
+}));
+
