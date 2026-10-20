@@ -2262,12 +2262,15 @@ parentRoutes.delete("/reminders/:id", async (c) => {
 const createArticleSchema = z.object({
   title: z.string().trim().min(3),
   slug: z.string().trim().min(3),
-  category: z.enum(["artikel", "makanan", "video"]).default("artikel"),
+  category: z.enum(["artikel", "makanan", "video", "podcast"]).default("artikel"),
   readTimeMinutes: z.number().int().min(1).default(3),
   summary: z.string().trim().min(5),
   content: z.string().trim().min(10),
-  videoUrl: z.string().url().optional().nullable(),
-  imageUrl: z.string().url().optional().nullable(),
+  mediaType: z.enum(["none", "youtube", "direct_video", "direct_audio", "spotify"]).default("none"),
+  videoUrl: z.string().trim().optional().nullable().or(z.literal("")),
+  audioUrl: z.string().trim().optional().nullable().or(z.literal("")),
+  speakerOrSource: z.string().trim().optional().nullable().or(z.literal("")),
+  imageUrl: z.string().trim().optional().nullable().or(z.literal("")),
 });
 
 parentRoutes.get("/education/articles", async (c) => {
@@ -2364,8 +2367,11 @@ parentRoutes.post("/education/articles", async (c) => {
         readTimeMinutes: parsed.data.readTimeMinutes,
         summary: parsed.data.summary,
         content: parsed.data.content,
-        videoUrl: parsed.data.videoUrl ?? null,
-        imageUrl: parsed.data.imageUrl ?? null,
+        mediaType: parsed.data.mediaType ?? "none",
+        videoUrl: parsed.data.videoUrl ? parsed.data.videoUrl : null,
+        audioUrl: parsed.data.audioUrl ? parsed.data.audioUrl : null,
+        speakerOrSource: parsed.data.speakerOrSource ? parsed.data.speakerOrSource : "Kemenkes RI & IDAI",
+        imageUrl: parsed.data.imageUrl ? parsed.data.imageUrl : null,
       })
       .returning();
 

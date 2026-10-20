@@ -1357,12 +1357,15 @@ adminRoutes.delete("/recipes/:id", async (c) => {
 const articleSchema = z.object({
   title: z.string().trim().min(3),
   slug: z.string().trim().min(3),
-  category: z.enum(["artikel", "makanan", "video"]).default("artikel"),
+  category: z.enum(["artikel", "makanan", "video", "podcast"]).default("artikel"),
   readTimeMinutes: z.number().int().min(1).default(3),
   summary: z.string().trim().min(5),
   content: z.string().trim().min(10),
-  videoUrl: z.string().url().optional().nullable(),
-  imageUrl: z.string().url().optional().nullable(),
+  mediaType: z.enum(["none", "youtube", "direct_video", "direct_audio", "spotify"]).default("none"),
+  videoUrl: z.string().trim().optional().nullable().or(z.literal("")),
+  audioUrl: z.string().trim().optional().nullable().or(z.literal("")),
+  speakerOrSource: z.string().trim().optional().nullable().or(z.literal("")),
+  imageUrl: z.string().trim().optional().nullable().or(z.literal("")),
 });
 
 const updateArticleSchema = articleSchema.partial();
@@ -1413,8 +1416,11 @@ adminRoutes.post("/education", async (c) => {
         readTimeMinutes: parsed.data.readTimeMinutes,
         summary: parsed.data.summary,
         content: parsed.data.content,
-        videoUrl: parsed.data.videoUrl ?? null,
-        imageUrl: parsed.data.imageUrl ?? null,
+        mediaType: parsed.data.mediaType ?? "none",
+        videoUrl: parsed.data.videoUrl ? parsed.data.videoUrl : null,
+        audioUrl: parsed.data.audioUrl ? parsed.data.audioUrl : null,
+        speakerOrSource: parsed.data.speakerOrSource ? parsed.data.speakerOrSource : "Kemenkes RI & IDAI",
+        imageUrl: parsed.data.imageUrl ? parsed.data.imageUrl : null,
       })
       .returning();
 
@@ -1462,10 +1468,16 @@ adminRoutes.put("/education/:id", async (c) => {
       updateData.readTimeMinutes = parsed.data.readTimeMinutes;
     if (parsed.data.summary) updateData.summary = parsed.data.summary;
     if (parsed.data.content) updateData.content = parsed.data.content;
+    if (parsed.data.mediaType !== undefined)
+      updateData.mediaType = parsed.data.mediaType;
     if (parsed.data.videoUrl !== undefined)
-      updateData.videoUrl = parsed.data.videoUrl;
+      updateData.videoUrl = parsed.data.videoUrl ? parsed.data.videoUrl : null;
+    if (parsed.data.audioUrl !== undefined)
+      updateData.audioUrl = parsed.data.audioUrl ? parsed.data.audioUrl : null;
+    if (parsed.data.speakerOrSource !== undefined)
+      updateData.speakerOrSource = parsed.data.speakerOrSource ? parsed.data.speakerOrSource : "Kemenkes RI & IDAI";
     if (parsed.data.imageUrl !== undefined)
-      updateData.imageUrl = parsed.data.imageUrl;
+      updateData.imageUrl = parsed.data.imageUrl ? parsed.data.imageUrl : null;
 
     const [article] = await drizzleDb
       .update(educationArticles)

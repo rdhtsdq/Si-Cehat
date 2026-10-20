@@ -100,11 +100,14 @@ interface ArticleItem {
   id: string;
   slug: string;
   title: string;
-  category: "artikel" | "makanan" | "video";
+  category: "artikel" | "makanan" | "video" | "podcast";
   readTimeMinutes: number;
   summary: string;
   content: string;
+  mediaType?: "none" | "youtube" | "direct_video" | "direct_audio" | "spotify";
   videoUrl?: string | null;
+  audioUrl?: string | null;
+  speakerOrSource?: string | null;
   imageUrl?: string | null;
   publishedAt?: string;
 }
@@ -252,6 +255,12 @@ Kamu bukan dokter dan tidak menggantikan tenaga kesehatan.
 
 Nada bicara: ramah, sederhana, positif, tidak menghakimi, dan sesuai untuk anak SD.`;
 
+function getYouTubeEmbedUrl(url?: string | null): string | null {
+  if (!url) return null;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i);
+  return match ? `https://www.youtube.com/embed/${match[1]}` : null;
+}
+
 export default function AdminDashboardClient({
   userEmail,
   userRole = "ADMIN",
@@ -335,11 +344,14 @@ export default function AdminDashboardClient({
   const [articleForm, setArticleForm] = useState({
     title: "",
     slug: "",
-    category: "artikel" as "artikel" | "makanan" | "video",
+    category: "artikel" as "artikel" | "makanan" | "video" | "podcast",
     readTimeMinutes: 3,
     summary: "",
     content: "",
+    mediaType: "none" as "none" | "youtube" | "direct_video" | "direct_audio" | "spotify",
     videoUrl: "",
+    audioUrl: "",
+    speakerOrSource: "Kemenkes RI & IDAI",
     imageUrl: "",
   });
 
@@ -777,7 +789,10 @@ export default function AdminDashboardClient({
       readTimeMinutes: Number(articleForm.readTimeMinutes),
       summary: articleForm.summary,
       content: articleForm.content,
+      mediaType: articleForm.mediaType,
       videoUrl: articleForm.videoUrl.trim() || undefined,
+      audioUrl: articleForm.audioUrl.trim() || undefined,
+      speakerOrSource: articleForm.speakerOrSource.trim() || undefined,
       imageUrl: articleForm.imageUrl.trim() || undefined,
     };
 
@@ -812,6 +827,14 @@ export default function AdminDashboardClient({
 
   function openEditArticle(a: ArticleItem) {
     setEditingArticleId(a.id);
+    const resolvedMediaType = a.mediaType && a.mediaType !== "none"
+      ? a.mediaType
+      : a.category === "video"
+      ? (a.videoUrl?.includes("youtube") || a.videoUrl?.includes("youtu.be") ? "youtube" : "direct_video")
+      : a.category === "podcast"
+      ? (a.audioUrl?.includes("spotify") ? "spotify" : "direct_audio")
+      : "none";
+
     setArticleForm({
       title: a.title,
       slug: a.slug,
@@ -819,7 +842,10 @@ export default function AdminDashboardClient({
       readTimeMinutes: a.readTimeMinutes,
       summary: a.summary,
       content: a.content,
+      mediaType: resolvedMediaType,
       videoUrl: a.videoUrl || "",
+      audioUrl: a.audioUrl || "",
+      speakerOrSource: a.speakerOrSource || "Kemenkes RI & IDAI",
       imageUrl: a.imageUrl || "",
     });
     setShowArticleModal(true);
@@ -1994,29 +2020,29 @@ export default function AdminDashboardClient({
         )}
 
         {/* ========================================================= */}
-        {/* TAB 3: CMS PUSTAKA EDUKASI (ARTIKEL / MAKANAN / VIDEO)     */}
+        {/* TAB 3: CMS PUSTAKA EDUKASI (ARTIKEL / MAKANAN / VIDEO / PODCAST) */}
         {/* ========================================================= */}
         {activeTab === "education" && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E2E8F0] pb-4">
               <div>
-                <h1 className="text-xl font-black text-[#0F5132]">Pustaka Materi Edukasi Kesehatan</h1>
+                <h1 className="text-xl font-black text-[#0F5132]">Pustaka Materi Edukasi Kesehatan & Media</h1>
                 <p className="text-xs text-[#64748B] mt-0.5">
-                  Kelola konten edukasi komprehensif: Artikel Ilmiah Populer, Panduan Pangan Alami Sehat, dan Video Tutorial.
+                  Kelola konten edukasi komprehensif: Artikel Bacaan, Panduan Gizi Pangan, Video Tutorial (YouTube/MP4), dan Podcast Audio (MP3/Spotify).
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="flex rounded-md border border-[#CBD5E1] bg-white p-0.5 text-xs font-semibold">
-                  {["semua", "artikel", "makanan", "video"].map((cat) => (
+                <div className="flex rounded-md border border-[#CBD5E1] bg-white p-0.5 text-xs font-semibold overflow-x-auto">
+                  {["semua", "artikel", "makanan", "video", "podcast"].map((cat) => (
                     <button
                       key={cat}
                       onClick={() => setArticleCategoryFilter(cat)}
                       className={`px-3 py-1 rounded text-xs capitalize transition ${
-                        articleCategoryFilter === cat ? "bg-[#0F5132] text-white" : "text-[#64748B] hover:text-black"
+                        articleCategoryFilter === cat ? "bg-[#0F5132] text-white font-bold" : "text-[#64748B] hover:text-black"
                       }`}
                     >
-                      {cat}
+                      {cat === "video" ? "🎬 Video" : cat === "podcast" ? "🎙️ Podcast" : cat === "makanan" ? "🥗 Gizi" : cat === "artikel" ? "📄 Artikel" : "Semua"}
                     </button>
                   ))}
                 </div>
@@ -2031,12 +2057,15 @@ export default function AdminDashboardClient({
                       readTimeMinutes: 3,
                       summary: "",
                       content: "",
+                      mediaType: "none",
                       videoUrl: "",
+                      audioUrl: "",
+                      speakerOrSource: "Kemenkes RI & IDAI",
                       imageUrl: "",
                     });
                     setShowArticleModal(true);
                   }}
-                  className="rounded-md bg-[#0F5132] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#146C43] shadow-xs flex items-center gap-1.5"
+                  className="rounded-md bg-[#0F5132] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#146C43] shadow-xs flex items-center gap-1.5 whitespace-nowrap"
                 >
                   <span>+ Tambah Materi</span>
                 </button>
@@ -2048,9 +2077,9 @@ export default function AdminDashboardClient({
               <table className="w-full text-xs text-left">
                 <thead className="bg-[#F8F9FA] text-[#495057] font-bold border-b border-[#E2E8F0]">
                   <tr>
-                    <th className="py-3 px-4">Judul & Slug</th>
-                    <th className="py-3 px-4">Kategori</th>
-                    <th className="py-3 px-4">Estimasi Baca</th>
+                    <th className="py-3 px-4">Judul & Narasumber</th>
+                    <th className="py-3 px-4">Kategori & Media</th>
+                    <th className="py-3 px-4">Estimasi / Durasi</th>
                     <th className="py-3 px-4">Ringkasan</th>
                     <th className="py-3 px-4 text-right">Aksi</th>
                   </tr>
@@ -2058,25 +2087,48 @@ export default function AdminDashboardClient({
                 <tbody className="divide-y divide-[#F1F5F9]">
                   {filteredArticles.map((a) => (
                     <tr key={a.id} className="hover:bg-[#F8F9FA]">
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 max-w-xs">
                         <p className="font-bold text-sm text-[#0F172A]">{a.title}</p>
-                        <p className="font-mono text-[11px] text-[#64748B]">/{a.slug}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="font-mono text-[11px] text-[#64748B]">/{a.slug}</span>
+                          {a.speakerOrSource && (
+                            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-medium">
+                              👤 {a.speakerOrSource}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4">
-                        <span
-                          className={`rounded px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
-                            a.category === "artikel"
-                              ? "bg-blue-100 text-blue-800"
-                              : a.category === "video"
-                              ? "bg-purple-100 text-purple-800"
-                              : "bg-emerald-100 text-emerald-800"
-                          }`}
-                        >
-                          {a.category}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span
+                            className={`rounded px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                              a.category === "artikel"
+                                ? "bg-blue-100 text-blue-800"
+                                : a.category === "video"
+                                ? "bg-purple-100 text-purple-800"
+                                : a.category === "podcast"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-emerald-100 text-emerald-800"
+                            }`}
+                          >
+                            {a.category === "video" ? "🎬 Video" : a.category === "podcast" ? "🎙️ Podcast" : a.category}
+                          </span>
+                          {a.videoUrl && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                              ▶️ {a.videoUrl.includes("youtu") ? "YouTube" : "Direct Video"}
+                            </span>
+                          )}
+                          {a.audioUrl && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                              🔊 {a.audioUrl.includes("spotify") ? "Spotify" : "MP3 Stream"}
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="py-3 px-4 text-[#64748B] font-mono">{a.readTimeMinutes} menit</td>
-                      <td className="py-3 px-4 text-[#64748B] max-w-md line-clamp-2">{a.summary}</td>
+                      <td className="py-3 px-4 text-[#64748B] font-mono whitespace-nowrap">
+                        ⏱️ {a.readTimeMinutes} menit
+                      </td>
+                      <td className="py-3 px-4 text-[#64748B] max-w-sm line-clamp-2">{a.summary}</td>
                       <td className="py-3 px-4 text-right whitespace-nowrap space-x-2">
                         <button
                           onClick={() => openEditArticle(a)}
@@ -2098,7 +2150,7 @@ export default function AdminDashboardClient({
 
               {filteredArticles.length === 0 && !articlesLoading && (
                 <p className="text-center py-10 text-xs text-[#64748B]">
-                  Belum ada artikel edukasi dalam kategori ini.
+                  Belum ada materi edukasi dalam kategori ini.
                 </p>
               )}
             </div>
@@ -2939,7 +2991,7 @@ export default function AdminDashboardClient({
       )}
 
       {/* ========================================================= */}
-      {/* MODAL: FORM MATERI EDUKASI (ARTIKEL/VIDEO/MAKANAN)        */}
+      {/* MODAL: FORM MATERI EDUKASI (ARTIKEL/VIDEO/MAKANAN/PODCAST) */}
       {/* ========================================================= */}
       {showArticleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -2969,24 +3021,45 @@ export default function AdminDashboardClient({
                     value={articleForm.title}
                     onChange={(e) => setArticleForm({ ...articleForm, title: e.target.value })}
                     className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
-                    placeholder="cth: Apa itu Diabetes pada Anak?"
+                    placeholder="cth: Kenali Bahaya Minuman Manis Sejak Dini"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-[#0F172A]">Kategori</label>
                   <select
                     value={articleForm.category}
-                    onChange={(e) => setArticleForm({ ...articleForm, category: e.target.value as "artikel" | "makanan" | "video" })}
-                    className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs bg-white"
+                    onChange={(e) => {
+                      const newCat = e.target.value as "artikel" | "makanan" | "video" | "podcast";
+                      let newMediaType: "none" | "youtube" | "direct_video" | "direct_audio" | "spotify" = "none";
+                      if (newCat === "video") newMediaType = "youtube";
+                      if (newCat === "podcast") newMediaType = "direct_audio";
+                      setArticleForm({
+                        ...articleForm,
+                        category: newCat,
+                        mediaType: newMediaType,
+                      });
+                    }}
+                    className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs bg-white font-semibold text-emerald-900"
                   >
-                    <option value="artikel">Artikel Bacaan</option>
-                    <option value="makanan">Makanan Sehat</option>
-                    <option value="video">Video Edukasi</option>
+                    <option value="artikel">📄 Artikel Bacaan</option>
+                    <option value="makanan">🥗 Gizi & Pangan Sehat</option>
+                    <option value="video">🎬 Video Edukasi</option>
+                    <option value="podcast">🎙️ Podcast Audio</option>
                   </select>
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Narasumber / Penulis</label>
+                  <input
+                    type="text"
+                    value={articleForm.speakerOrSource}
+                    onChange={(e) => setArticleForm({ ...articleForm, speakerOrSource: e.target.value })}
+                    className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
+                    placeholder="cth: dr. Amanda Sp.A & Bidan Rita"
+                  />
+                </div>
                 <div>
                   <label className="block text-xs font-bold text-[#0F172A]">Custom Slug (Opsional)</label>
                   <input
@@ -2994,23 +3067,169 @@ export default function AdminDashboardClient({
                     value={articleForm.slug}
                     onChange={(e) => setArticleForm({ ...articleForm, slug: e.target.value })}
                     className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs font-mono"
-                    placeholder="apa-itu-diabetes-pada-anak"
+                    placeholder="bahaya-minuman-manis"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-[#0F172A]">Estimasi Menit Baca</label>
+                  <label className="block text-xs font-bold text-[#0F172A]">
+                    {articleForm.category === "video" || articleForm.category === "podcast" ? "Durasi Media (Menit)" : "Estimasi Menit Baca"}
+                  </label>
                   <input
                     type="number"
                     min={1}
                     value={articleForm.readTimeMinutes}
                     onChange={(e) => setArticleForm({ ...articleForm, readTimeMinutes: Number(e.target.value) })}
-                    className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
+                    className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs font-mono"
                   />
                 </div>
               </div>
 
+              {/* MEDIA EMBED SECTION: VIDEO */}
+              {articleForm.category === "video" && (
+                <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                      🎬 Konfigurasi Media Video
+                    </span>
+                    <div className="flex gap-2">
+                      <label className="text-[11px] font-semibold text-purple-800 flex items-center gap-1 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="videoMediaType"
+                          checked={articleForm.mediaType === "youtube"}
+                          onChange={() => setArticleForm({ ...articleForm, mediaType: "youtube" })}
+                        />
+                        YouTube Embed
+                      </label>
+                      <label className="text-[11px] font-semibold text-purple-800 flex items-center gap-1 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="videoMediaType"
+                          checked={articleForm.mediaType === "direct_video"}
+                          onChange={() => setArticleForm({ ...articleForm, mediaType: "direct_video" })}
+                        />
+                        File Direct MP4
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700">
+                      {articleForm.mediaType === "youtube" ? "URL YouTube (Video ID otomatis diekstrak)" : "Direct URL Video (.mp4 / .webm)"}
+                    </label>
+                    <input
+                      type="url"
+                      value={articleForm.videoUrl}
+                      onChange={(e) => setArticleForm({ ...articleForm, videoUrl: e.target.value })}
+                      className="mt-1 w-full rounded border border-[#CBD5E1] bg-white p-2 text-xs"
+                      placeholder={
+                        articleForm.mediaType === "youtube"
+                          ? "https://www.youtube.com/watch?v=kXYiU_JCYtU atau https://youtu.be/..."
+                          : "https://domain.com/videos/edukasi_anak.mp4"
+                      }
+                    />
+                  </div>
+
+                  {/* Real-time Video Preview */}
+                  {articleForm.videoUrl && (
+                    <div className="pt-1">
+                      <p className="text-[11px] font-bold text-purple-900 mb-1.5">Pratinjau Pemutar Video Langsung:</p>
+                      {getYouTubeEmbedUrl(articleForm.videoUrl) ? (
+                        <div className="aspect-video w-full overflow-hidden rounded-lg border border-purple-300 bg-black shadow-xs">
+                          <iframe
+                            src={getYouTubeEmbedUrl(articleForm.videoUrl)!}
+                            title="Pratinjau Video"
+                            className="w-full h-full"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          />
+                        </div>
+                      ) : (
+                        <div className="aspect-video w-full overflow-hidden rounded-lg border border-purple-300 bg-black shadow-xs flex items-center justify-center">
+                          <video controls className="w-full h-full" src={articleForm.videoUrl}>
+                            Browser tidak mendukung tag video HTML5.
+                          </video>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* MEDIA EMBED SECTION: PODCAST */}
+              {articleForm.category === "podcast" && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                      🎙️ Konfigurasi Media Podcast
+                    </span>
+                    <div className="flex gap-2">
+                      <label className="text-[11px] font-semibold text-amber-900 flex items-center gap-1 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="podcastMediaType"
+                          checked={articleForm.mediaType === "direct_audio"}
+                          onChange={() => setArticleForm({ ...articleForm, mediaType: "direct_audio" })}
+                        />
+                        Direct MP3 Stream
+                      </label>
+                      <label className="text-[11px] font-semibold text-amber-900 flex items-center gap-1 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="podcastMediaType"
+                          checked={articleForm.mediaType === "spotify"}
+                          onChange={() => setArticleForm({ ...articleForm, mediaType: "spotify" })}
+                        />
+                        Spotify Episode
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700">
+                      {articleForm.mediaType === "spotify" ? "URL Episode Spotify" : "Direct URL Audio (.mp3 / .aac / .m4a / .ogg)"}
+                    </label>
+                    <input
+                      type="url"
+                      value={articleForm.audioUrl}
+                      onChange={(e) => setArticleForm({ ...articleForm, audioUrl: e.target.value })}
+                      className="mt-1 w-full rounded border border-[#CBD5E1] bg-white p-2 text-xs"
+                      placeholder={
+                        articleForm.mediaType === "spotify"
+                          ? "https://open.spotify.com/episode/..."
+                          : "https://actions.google.com/sounds/v1/water/rain_heavy.ogg atau https://.../podcast.mp3"
+                      }
+                    />
+                  </div>
+
+                  {/* Real-time Audio Preview */}
+                  {articleForm.audioUrl && (
+                    <div className="pt-1">
+                      <p className="text-[11px] font-bold text-amber-900 mb-1.5">Uji Coba Pemutar Audio Langsung:</p>
+                      {articleForm.mediaType === "spotify" && articleForm.audioUrl.includes("spotify.com") ? (
+                        <div className="rounded-lg overflow-hidden border border-amber-300">
+                          <iframe
+                            src={articleForm.audioUrl.replace("open.spotify.com/episode/", "open.spotify.com/embed/episode/")}
+                            width="100%"
+                            height="152"
+                            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                            loading="lazy"
+                          />
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-amber-300 bg-white p-3 shadow-xs">
+                          <audio controls className="w-full" src={articleForm.audioUrl}>
+                            Browser tidak mendukung tag audio HTML5.
+                          </audio>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-bold text-[#0F172A]">Ringkasan Singkat</label>
+                <label className="block text-xs font-bold text-[#0F172A]">Ringkasan Singkat (Highlight Preview)</label>
                 <textarea
                   required
                   rows={2}
@@ -3022,7 +3241,9 @@ export default function AdminDashboardClient({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#0F172A]">Konten Materi (Teks / Panduan)</label>
+                <label className="block text-xs font-bold text-[#0F172A]">
+                  {articleForm.category === "podcast" ? "Transkrip / Ringkasan Poin Diskusi" : "Konten Lengkap Materi (Teks / Panduan)"}
+                </label>
                 <textarea
                   required
                   rows={5}
@@ -3033,21 +3254,8 @@ export default function AdminDashboardClient({
                 />
               </div>
 
-              {articleForm.category === "video" && (
-                <div>
-                  <label className="block text-xs font-bold text-[#0F172A]">URL Video (YouTube / MP4)</label>
-                  <input
-                    type="url"
-                    value={articleForm.videoUrl}
-                    onChange={(e) => setArticleForm({ ...articleForm, videoUrl: e.target.value })}
-                    className="mt-1 w-full rounded border border-[#CBD5E1] p-2 text-xs"
-                    placeholder="https://www.youtube.com/watch?v=..."
-                  />
-                </div>
-              )}
-
               <div>
-                <label className="block text-xs font-bold text-[#0F172A]">URL Gambar Banner (Opsional)</label>
+                <label className="block text-xs font-bold text-[#0F172A]">URL Gambar Poster / Banner (Opsional)</label>
                 <input
                   type="url"
                   value={articleForm.imageUrl}

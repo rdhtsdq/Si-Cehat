@@ -527,6 +527,46 @@ Gunakan metode memasak kukus, rebus, atau panggang untuk membatasi lemak jenuh d
         imageUrl:
           "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=60",
       },
+      {
+        slug: "video-kenali-tanda-bahaya-diabetes-anak",
+        title: "Video: Kenali Tanda Bahaya Diabetes Anak Sejak Dini",
+        category: "video",
+        readTimeMinutes: 5,
+        summary:
+          "Video panduan visual mengenai gejala 4P (Poliuria, Polidipsia, Polifagia, Penurunan Berat) pada anak usia sekolah.",
+        content: `Dalam video edukasi ini, dokter spesialis anak menjelaskan bagaimana mendeteksi secara dini gejala 4P diabetes pada anak:
+1. Poliuria: Anak sangat sering buang air kecil, bahkan mengompol kembali.
+2. Polidipsia: Rasa haus berlebih yang tidak kunjung reda.
+3. Polifagia: Nafsu makan meningkat tajam namun berat badan justru merosot.
+4. Penurunan Berat Badan & Kelelahan: Tubuh kekurangan energi karena glukosa tidak dapat masuk ke sel tubuh.
+
+Simak penjelasan lengkap dan langkah pencegahan pertama di rumah melalui video berikut.`,
+        mediaType: "youtube",
+        videoUrl: "https://www.youtube.com/watch?v=kXYiU_JCYtU",
+        speakerOrSource: "dr. Amanda Sp.A - Satgas Gizi & Diabetes Anak",
+        imageUrl:
+          "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=500&auto=format&fit=crop&q=60",
+      },
+      {
+        slug: "podcast-bicara-pola-asuh-gizi-anak",
+        title: "Podcast: Bicara Pola Asuh Gizi Anak & Batasi Minuman Manis",
+        category: "podcast",
+        readTimeMinutes: 12,
+        summary:
+          "Obrolan santai bersama bidan komunitas dan dokter spesialis anak tentang trik mengajak anak gemar makan sayur dan air putih.",
+        content: `Di episode podcast perdana Si-Cehat ini, kita mengupas tuntas:
+- Mengapa anak zaman sekarang lebih cepat terpikat kemasan minuman berpemanis (MBDK).
+- Trik psikologis orang tua: jangan melarang total, namun sediakan alternatif lezat di meja makan.
+- Peran ayah dan ibu sebagai role-model nyata kebiasaan minum air putih.
+- Cara bijak mengatur jajan anak di lingkungan sekolah.
+
+Dengarkan podcast ini sambil menemani aktivitas santai bersama keluarga!`,
+        mediaType: "direct_audio",
+        audioUrl: "https://actions.google.com/sounds/v1/water/rain_heavy.ogg",
+        speakerOrSource: "Bidan Rita & dr. Farhan Sp.A",
+        imageUrl:
+          "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=500&auto=format&fit=crop&q=60",
+      },
     ]);
     console.log("Created default education articles.");
   }
