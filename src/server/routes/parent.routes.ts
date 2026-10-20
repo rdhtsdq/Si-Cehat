@@ -10,6 +10,7 @@ import {
   screeningRecords,
   detailedFoodLogs,
   recipes,
+  recommendedMenus,
   reminders,
   educationArticles,
   consultations,
@@ -111,13 +112,19 @@ parentRoutes.put("/parent/profile", async (c) => {
 // 2. GET & POST /api/children & GET, PUT /api/children/:id
 const createChildSchema = z.object({
   name: z.string().trim().min(1, "Nama anak harus diisi").max(40),
+  birthDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}/, "Format tanggal lahir YYYY-MM-DD")
+    .optional(),
+  gender: z.enum(["MALE", "FEMALE"]).optional(),
+  healthHistory: z.string().trim().max(500).optional(),
 });
 
 const updateChildSchema = z.object({
   name: z.string().trim().min(1).max(40).optional(),
   birthDate: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal lahir YYYY-MM-DD")
+    .regex(/^\d{4}-\d{2}-\d{2}/, "Format tanggal lahir YYYY-MM-DD")
     .optional(),
   gender: z.enum(["MALE", "FEMALE"]).optional(),
   healthHistory: z.string().trim().max(500).optional(),
@@ -136,6 +143,10 @@ parentRoutes.get("/children", async (c) => {
         dailyProgresses: {
           orderBy: [desc(dailyProgresses.date)],
           limit: 7,
+        },
+        screenings: {
+          orderBy: [desc(screeningRecords.createdAt)],
+          limit: 1,
         },
       },
     });
@@ -168,11 +179,17 @@ parentRoutes.post("/children", async (c) => {
   }
 
   try {
+    const { name, birthDate, gender, healthHistory } = result.data;
     const [child] = await drizzleDb
       .insert(children)
       .values({
         guardianId: session.user.id,
-        name: result.data.name,
+        name,
+        birthDate: birthDate
+          ? new Date(`${birthDate.slice(0, 10)}T00:00:00.000Z`)
+          : null,
+        gender: gender || null,
+        healthHistory: healthHistory || null,
         avatarPreference: JSON.stringify({
           character: "default",
           accessory: "none",
@@ -272,7 +289,7 @@ parentRoutes.put("/children/:id", async (c) => {
     const updatePayload: Record<string, unknown> = {};
     if (name !== undefined) updatePayload.name = name;
     if (birthDate !== undefined)
-      updatePayload.birthDate = new Date(`${birthDate}T00:00:00.000Z`);
+      updatePayload.birthDate = new Date(`${birthDate.slice(0, 10)}T00:00:00.000Z`);
     if (gender !== undefined) updatePayload.gender = gender;
     if (healthHistory !== undefined) updatePayload.healthHistory = healthHistory;
 
@@ -1020,6 +1037,700 @@ parentRoutes.get("/recipes/:id", async (c) => {
   } catch (error) {
     console.error("Get recipe detail error:", error);
     return c.json({ error: { message: "Gagal memuat detail resep." } }, 500);
+  }
+});
+
+// 6b. GET /api/meal-plan & POST /api/meal-plan/sync-reminders
+parentRoutes.get("/meal-plan", async (c) => {
+  const session = await getSession(c);
+  let childId = c.req.query("childId");
+  let queryRisk = c.req.query("riskCategory");
+
+  let targetChild: { id: string; name: string } | null = null;
+  let riskCategory = "RENDAH";
+  let targetCalories = "1.500 - 1.700 kkal / hari";
+
+  try {
+    // 1. Identify active child if authenticated
+    if (session?.user?.id) {
+      if (childId) {
+        const [cMatch] = await drizzleDb
+          .select({ id: children.id, name: children.name })
+          .from(children)
+          .where(and(eq(children.id, childId), eq(children.guardianId, session.user.id)))
+          .limit(1);
+        if (cMatch) targetChild = cMatch;
+      }
+
+      if (!targetChild) {
+        const [firstC] = await drizzleDb
+          .select({ id: children.id, name: children.name })
+          .from(children)
+          .where(eq(children.guardianId, session.user.id))
+          .limit(1);
+        if (firstC) {
+          targetChild = firstC;
+          childId = firstC.id;
+        }
+      }
+    }
+
+    // 2. Determine risk category from latest screening
+    if (targetChild) {
+      const [latestScreening] = await drizzleDb
+        .select({
+          riskCategory: screeningRecords.riskCategory,
+          riskScore: screeningRecords.riskScore,
+        })
+        .from(screeningRecords)
+        .where(eq(screeningRecords.childId, targetChild.id))
+        .orderBy(desc(screeningRecords.createdAt))
+        .limit(1);
+
+      if (latestScreening?.riskCategory) {
+        riskCategory = latestScreening.riskCategory.toUpperCase();
+      }
+    } else if (queryRisk) {
+      riskCategory = queryRisk.toUpperCase();
+    }
+
+    if (!["RENDAH", "SEDANG", "TINGGI"].includes(riskCategory)) {
+      riskCategory = "RENDAH";
+    }
+
+    if (riskCategory === "TINGGI") {
+      targetCalories = "1.250 - 1.400 kkal / hari (Rendah Gula & Karbohidrat Terkontrol)";
+    } else if (riskCategory === "SEDANG") {
+      targetCalories = "1.350 - 1.550 kkal / hari (Tinggi Serat & Porsi Seimbang)";
+    } else {
+      targetCalories = "1.500 - 1.700 kkal / hari (Gizi Seimbang Keluarga)";
+    }
+
+    // 3. Load recipes & recommended menus from database
+    const dbRecipes = await drizzleDb
+      .select({
+        id: recipes.id,
+        title: recipes.title,
+        category: recipes.category,
+        caloriesKkal: recipes.caloriesKkal,
+        carbsGram: recipes.carbsGram,
+        proteinGram: recipes.proteinGram,
+        fiberGram: recipes.fiberGram,
+        imageUrl: recipes.imageUrl,
+      })
+      .from(recipes)
+      .limit(20);
+
+    const dbRecommendedMenus = await drizzleDb
+      .select()
+      .from(recommendedMenus)
+      .limit(6);
+
+    const fallbackRecommendedMenus = [
+      {
+        id: "rec_menu_1",
+        title: "Nasi Merah, Ayam Panggang, Sayur Bening Bayam, & Pepaya",
+        note: "Piring lengkap kaya zat besi dan serat alami tanpa lonjakan gula mendadak.",
+      },
+      {
+        id: "rec_menu_2",
+        title: "Karedok Ringan dengan Tahu Kukus & Telur Rebus",
+        note: "Aneka sayur mentah segar kaya enzim pencernaan dan serat larut penahan lapar.",
+      },
+      {
+        id: "rec_menu_3",
+        title: "Tumis Buncis Jagung Manis & Tempe Bacem Panggang",
+        note: "Kombinasi protein nabati dan serat pangan yang ramah metabolisme insulin anak.",
+      },
+    ];
+
+    const finalRecommended =
+      dbRecommendedMenus.length > 0
+        ? dbRecommendedMenus.map((m) => ({
+            id: m.id,
+            title: m.title,
+            note: m.note,
+          }))
+        : fallbackRecommendedMenus;
+
+    // Helper to find related recipe
+    const findRecipeMatch = (keyword: string) => {
+      const match = dbRecipes.find((r) =>
+        r.title.toLowerCase().includes(keyword.toLowerCase())
+      );
+      if (match) {
+        return {
+          relatedRecipeId: match.id,
+          relatedRecipeTitle: match.title,
+        };
+      }
+      return {
+        relatedRecipeId: undefined,
+        relatedRecipeTitle: undefined,
+      };
+    };
+
+    // 4. Generate structured 7-day meal plan tailored to risk
+    const isHigh = riskCategory === "TINGGI";
+    const isMedium = riskCategory === "SEDANG";
+
+    const weeklyPlan = [
+      {
+        dayNumber: 1,
+        focusTitle: isHigh
+          ? "Hari 1: Serat Maksimal & Pembatasan Gula Bebas"
+          : isMedium
+          ? "Hari 1: Porsi Karbohidrat Terkontrol & Sayur Beragam"
+          : "Hari 1: Gizi Lengkap Piring Sehat & Hidrasi Cukup",
+        meals: [
+          {
+            type: "Sarapan",
+            title: isHigh
+              ? "Nasi Merah + Telur Rebus + Sayur Bening Bayam + Pepaya"
+              : "Nasi Uduk Gurih Minim Santan + Telur Balado + Timun Segar",
+            time: "07:00",
+            image: "dish-1.png",
+            calories: isHigh ? "260 kkal" : "310 kkal",
+            protein: "14.0 g",
+            fiber: isHigh ? "5.0 g" : "3.5 g",
+            carbs: isHigh ? "32.0 g" : "44.0 g",
+            description:
+              "Kombinasi serat bayam dan protein telur menjaga fokus belajar anak tanpa rasa kantuk.",
+            tips: isHigh
+              ? "Ganti nasi putih ke nasi merah atau beras cokelat untuk indeks glikemik rendah."
+              : "Hindari minuman teh manis saat sarapan; dampingi dengan segelas air putih hangat.",
+            ...findRecipeMatch("Sayur Asem"),
+          },
+          {
+            type: "Camilan Pagi",
+            title: isHigh ? "Edamame Rebus Gurih" : "Pisang Barangan Kukus",
+            time: "10:30",
+            image: "dish-2.png",
+            calories: isHigh ? "80 kkal" : "95 kkal",
+            protein: isHigh ? "7.0 g" : "1.5 g",
+            fiber: "2.8 g",
+            carbs: isHigh ? "8.0 g" : "22.0 g",
+            description: "Camilan bernutrisi utuh tanpa tambahan gula atau minyak gorengan.",
+            tips: "Biji-bijian utuh kaya serat larut yang membantu rasa kenyang stabil.",
+          },
+          {
+            type: "Makan Siang",
+            title: "Pecel Lele Panggang + Sayur Asem Segar + Nasi Secukupnya",
+            time: "13:00",
+            image: "dish-3.png",
+            calories: isHigh ? "310 kkal" : "360 kkal",
+            protein: "22.0 g",
+            fiber: "4.8 g",
+            carbs: isHigh ? "36.0 g" : "46.0 g",
+            description:
+              "Ikan lele kaya asam lemak esensial dan protein, dipanggang tanpa minyak berlebih.",
+            tips: "Gunakan sambal tomat segar ulek tanpa gula pasir.",
+            ...findRecipeMatch("Pecel Lele"),
+          },
+          {
+            type: "Camilan Sore",
+            title: isHigh ? "Es Timun Serut Jeruk Nipis (Tanpa Gula)" : "Ubi Jalar Rebus Potong",
+            time: "16:00",
+            image: "dish-4.png",
+            calories: isHigh ? "35 kkal" : "90 kkal",
+            protein: "1.0 g",
+            fiber: "2.2 g",
+            carbs: isHigh ? "7.0 g" : "21.0 g",
+            description: "Hidrasi alami dan serat segar pengganjal waktu sore menjelang malam.",
+            tips: "Mentimun dan jeruk nipis kaya antioksidan pencegah dehidrasi.",
+            ...findRecipeMatch("Es Timun"),
+          },
+          {
+            type: "Makan Malam",
+            title: "Nasi Rawon Daging Tanpa Lemak + Tauge Pendek",
+            time: "19:00",
+            image: "dish-2.png",
+            calories: isHigh ? "270 kkal" : "320 kkal",
+            protein: "20.0 g",
+            fiber: "3.5 g",
+            carbs: isHigh ? "30.0 g" : "40.0 g",
+            description:
+              "Kluwek kaya antioksidan alami dipadu potongan daging sapi has dalam empuk.",
+            tips: "Konsumsi makan malam minimal 2 jam sebelum anak tidur agar pencernaan optimal.",
+            ...findRecipeMatch("Rawon"),
+          },
+        ],
+      },
+      {
+        dayNumber: 2,
+        focusTitle: isHigh
+          ? "Hari 2: Protein Berkualitas & Pilihan Karbohidrat Utuh"
+          : "Hari 2: Variasi Sayur Warna-Warni & Camilan Buah",
+        meals: [
+          {
+            type: "Sarapan",
+            title: "Bubur Havermut (Oat) Gurih Ayam Suwir & Wortel",
+            time: "07:00",
+            image: "dish-1.png",
+            calories: "280 kkal",
+            protein: "15.0 g",
+            fiber: "4.2 g",
+            carbs: "35.0 g",
+            description: "Serat beta-glukan pada oat terbukti ilmiah menstabilkan pelepasan insulin.",
+            tips: "Gunakan kaldu ayam kampung tanpa penyedap berlebih.",
+          },
+          {
+            type: "Camilan Pagi",
+            title: "Apel Fuji Iris Segar Kulit Bersih",
+            time: "10:30",
+            image: "dish-4.png",
+            calories: "60 kkal",
+            protein: "0.5 g",
+            fiber: "2.8 g",
+            carbs: "15.0 g",
+            description: "Serat pektin pada apel menahan lapar dan melindungi gigi anak.",
+            tips: "Cuci dengan air mengalir; makan bersama kulitnya untuk serat maksimal.",
+          },
+          {
+            type: "Makan Siang",
+            title: "Pepes Ikan Nila Kemangi + Tumis Buncis Jagung Manis + Nasi",
+            time: "13:00",
+            image: "dish-3.png",
+            calories: "330 kkal",
+            protein: "24.0 g",
+            fiber: "4.5 g",
+            carbs: "40.0 g",
+            description: "Kukusan daun pisang memberi aroma sedap tanpa tambahan kalori minyak.",
+            tips: "Buncis memiliki indeks glikemik rendah dan kaya vitamin C.",
+            ...findRecipeMatch("Pepes"),
+          },
+          {
+            type: "Camilan Sore",
+            title: "Ubi Ungu Kukus Hangat",
+            time: "16:00",
+            image: "dish-2.png",
+            calories: "95 kkal",
+            protein: "1.5 g",
+            fiber: "3.0 g",
+            carbs: "22.0 g",
+            description: "Warna ungu alami berasal dari antosianin pelindung pembuluh darah.",
+            tips: "Kukus hingga empuk alami tanpa gula atau mentega.",
+          },
+          {
+            type: "Makan Malam",
+            title: "Sup Ayam Jagung Manis + Tahu Kukus Bumbu Kuning + Nasi",
+            time: "19:00",
+            image: "dish-1.png",
+            calories: "290 kkal",
+            protein: "18.0 g",
+            fiber: "3.8 g",
+            carbs: "38.0 g",
+            description: "Hidangan berkuah hangat yang menenangkan tubuh menjelang waktu tidur.",
+            tips: "Perbanyak potongan tahu dan wortel pada mangkuk anak.",
+          },
+        ],
+      },
+      {
+        dayNumber: 3,
+        focusTitle: "Hari 3: Serat Nabati Tempe Tahu & Sayuran Hijau",
+        meals: [
+          {
+            type: "Sarapan",
+            title: "Nasi Tutuk Oncom Panggang + Telur Dadar Daun Bawang + Timun",
+            time: "07:00",
+            image: "dish-1.png",
+            calories: "300 kkal",
+            protein: "14.0 g",
+            fiber: "4.0 g",
+            carbs: "39.0 g",
+            description: "Fermentasi oncom khas Jawa Barat kaya isoflavon dan protein nabati.",
+            tips: "Kombinasikan dengan lalapan daun kemangi segar.",
+            ...findRecipeMatch("Tutuk"),
+          },
+          {
+            type: "Camilan Pagi",
+            title: "Potongan Pepaya California Dingin",
+            time: "10:30",
+            image: "dish-4.png",
+            calories: "50 kkal",
+            protein: "0.6 g",
+            fiber: "2.0 g",
+            carbs: "12.0 g",
+            description: "Enzim papain melancarkan saluran cerna dan menjaga metabolisme anak.",
+            tips: "Beri sedikit perasan jeruk nipis untuk rasa segar alami.",
+          },
+          {
+            type: "Makan Siang",
+            title: "Sayur Lodeh Santan Encer + Ayam Ungkep Panggang + Nasi",
+            time: "13:00",
+            image: "dish-3.png",
+            calories: "340 kkal",
+            protein: "23.0 g",
+            fiber: "4.6 g",
+            carbs: "42.0 g",
+            description: "Labu siam dan terong pada sayur lodeh menyediakan serat larut air.",
+            tips: "Gunakan santan encer agar kalori lemak jenuh tetap terjaga rendah.",
+          },
+          {
+            type: "Camilan Sore",
+            title: "Kacang Hijau Rebus Daun Pandan (Gula Aren Sangat Sedikit)",
+            time: "16:00",
+            image: "dish-2.png",
+            calories: "100 kkal",
+            protein: "4.0 g",
+            fiber: "3.5 g",
+            carbs: "19.0 g",
+            description: "Kaya vitamin B kompleks dan seng untuk imunitas anak yang aktif.",
+            tips: "Gunakan aroma jahe dan daun pandan untuk rasa manis alami rempah.",
+          },
+          {
+            type: "Makan Malam",
+            title: "Tumis Kangkung Terasi Ringan + Tempe Bacem Panggang + Nasi",
+            time: "19:00",
+            image: "dish-1.png",
+            calories: "280 kkal",
+            protein: "16.0 g",
+            fiber: "4.0 g",
+            carbs: "36.0 g",
+            description: "Menu malam praktis kaya zat besi dan prebiotik alami.",
+            tips: "Tumis dengan sedikit minyak kelapa dan bawang putih cincang banyak.",
+          },
+        ],
+      },
+      {
+        dayNumber: 4,
+        focusTitle: "Hari 4: Penguatan Imun & Menu Tradisional Ringan",
+        meals: [
+          {
+            type: "Sarapan",
+            title: "Nasi Uap + Orak-Arik Buncis Telur Wortel + Jeruk Manis",
+            time: "07:00",
+            image: "dish-1.png",
+            calories: "290 kkal",
+            protein: "13.0 g",
+            fiber: "4.0 g",
+            carbs: "38.0 g",
+            description: "Warna hijau dan jingga sayur memberikan beta-karoten yang baik untuk mata anak.",
+            tips: "Sajikan dengan buah jeruk utuh, bukan jus kemasan.",
+          },
+          {
+            type: "Camilan Pagi",
+            title: "Wedang Jahe Sereh Hangat Madu Sedikit",
+            time: "10:30",
+            image: "dish-2.png",
+            calories: "35 kkal",
+            protein: "0.2 g",
+            fiber: "0.5 g",
+            carbs: "8.0 g",
+            description: "Rempah jahe dan sereh menghangatkan tubuh dan meredakan peradangan.",
+            tips: "Gunakan madu murni maksimal 1 sendok teh.",
+            ...findRecipeMatch("Wedang"),
+          },
+          {
+            type: "Makan Siang",
+            title: "Gado-Gado Siram Saus Kacang Encer + Telur Rebus + Lontong",
+            time: "13:00",
+            image: "dish-3.png",
+            calories: "330 kkal",
+            protein: "16.0 g",
+            fiber: "5.5 g",
+            carbs: "42.0 g",
+            description: "Komposisi sayuran selada, tauge, dan mentimun melimpah tinggi mikronutrien.",
+            tips: "Saus kacang dibuat tanpa gula merah berlebih dan tidak terlalu kental.",
+          },
+          {
+            type: "Camilan Sore",
+            title: "Semangka Merah Potong Dingin",
+            time: "16:00",
+            image: "dish-4.png",
+            calories: "45 kkal",
+            protein: "0.8 g",
+            fiber: "1.2 g",
+            carbs: "11.0 g",
+            description: "Kandungan air semangka mencapai 92%, sangat baik untuk hidrasi sore hari.",
+            tips: "Camilan buah dingin membantu anak terhindar dari jajan es sirop di luar rumah.",
+          },
+          {
+            type: "Makan Malam",
+            title: "Ikan Kembung Bakar Kunyit + Sayur Bening Oyong + Nasi",
+            time: "19:00",
+            image: "dish-2.png",
+            calories: "290 kkal",
+            protein: "22.0 g",
+            fiber: "3.5 g",
+            carbs: "35.0 g",
+            description: "Ikan kembung lokal memiliki kandungan omega-3 setara salmon.",
+            tips: "Sayur oyong berserat halus yang sangat ramah lambung malam hari.",
+          },
+        ],
+      },
+      {
+        dayNumber: 5,
+        focusTitle: "Hari 5: Kekuatan Tulang & Keseimbangan Elektrolit",
+        meals: [
+          {
+            type: "Sarapan",
+            title: "Roti Gandum Panggang Telur Mata Sapi + Irisan Tomat",
+            time: "07:00",
+            image: "dish-1.png",
+            calories: "270 kkal",
+            protein: "14.0 g",
+            fiber: "4.5 g",
+            carbs: "32.0 g",
+            description: "Roti gandum utuh menyediakan karbohidrat lepas lambat.",
+            tips: "Hindari selai manis buatan; pilih selai kacang murni tanpa gula.",
+          },
+          {
+            type: "Camilan Pagi",
+            title: "Jagung Manis Pipil Rebus",
+            time: "10:30",
+            image: "dish-2.png",
+            calories: "90 kkal",
+            protein: "2.8 g",
+            fiber: "2.5 g",
+            carbs: "20.0 g",
+            description: "Camilan manis alami tanpa kental manis atau mentega.",
+            tips: "Taburi sedikit keju parut rendah garam jika anak menyukai rasa gurih.",
+          },
+          {
+            type: "Makan Siang",
+            title: "Soto Ayam Bening Kuning + Nasi + Tauge & Kol Rebus",
+            time: "13:00",
+            image: "dish-3.png",
+            calories: "320 kkal",
+            protein: "22.0 g",
+            fiber: "4.2 g",
+            carbs: "38.0 g",
+            description: "Kuah soto bening kaya kunyit yang berfungsi sebagai anti-inflamasi alami.",
+            tips: "Hindari kerupuk berlebih; gantikan dengan taburan emping secukupnya.",
+          },
+          {
+            type: "Camilan Sore",
+            title: "Yoghurt Tawar Dingin + Potongan Buah Naga",
+            time: "16:00",
+            image: "dish-4.png",
+            calories: "85 kkal",
+            protein: "4.5 g",
+            fiber: "2.0 g",
+            carbs: "13.0 g",
+            description: "Probiotik yoghurt menjaga kesehatan flora usus dan penyerapan gula.",
+            tips: "Pilih Greek yoghurt atau plain yoghurt tanpa sirup pemanis.",
+          },
+          {
+            type: "Makan Malam",
+            title: "Tahu Tempe Goreng Air (Air Fryer) + Sayur Asem + Nasi",
+            time: "19:00",
+            image: "dish-1.png",
+            calories: "280 kkal",
+            protein: "17.0 g",
+            fiber: "4.5 g",
+            carbs: "36.0 g",
+            description: "Sajian khas Nusantara rendah minyak yang nikmat dan mengenyangkan.",
+            tips: "Gunakan air fryer atau teflon anti-lengket dengan semprotan minyak sedikit.",
+            ...findRecipeMatch("Sayur Asem"),
+          },
+        ],
+      },
+      {
+        dayNumber: 6,
+        focusTitle: "Hari 6: Variasi Akhir Pekan Sehat untuk Keluarga",
+        meals: [
+          {
+            type: "Sarapan",
+            title: "Lontong Sayur Labu Siam Labu Air Bumbu Kuning + Telur",
+            time: "07:00",
+            image: "dish-1.png",
+            calories: "310 kkal",
+            protein: "14.0 g",
+            fiber: "4.0 g",
+            carbs: "42.0 g",
+            description: "Sarapan akhir pekan ceria dengan kuah gurih bumbu rempah daun salam.",
+            tips: "Perbanyak porsi sayur labu siam dibanding porsi lontongnya.",
+          },
+          {
+            type: "Camilan Pagi",
+            title: "Melon Cantaloupe Potong Segar",
+            time: "10:30",
+            image: "dish-4.png",
+            calories: "50 kkal",
+            protein: "0.8 g",
+            fiber: "1.5 g",
+            carbs: "12.0 g",
+            description: "Kaya vitamin A dan vitamin C untuk kesehatan kulit serta imun anak.",
+            tips: "Potong berbentuk dadu kecil agar menarik bagi anak.",
+          },
+          {
+            type: "Makan Siang",
+            title: "Nasi Bakar Isi Dada Ayam Kemangi Jamur + Lalapan Selada Timun",
+            time: "13:00",
+            image: "dish-3.png",
+            calories: "340 kkal",
+            protein: "24.0 g",
+            fiber: "3.8 g",
+            carbs: "42.0 g",
+            description: "Aroma bakar daun pisang menambah nafsu makan tanpa perlu saus olahan.",
+            tips: "Dada ayam tanpa kulit memiliki lemak jenuh yang sangat minimal.",
+          },
+          {
+            type: "Camilan Sore",
+            title: "Singkong Rebus Tabur Kelapa Parut Sedikit",
+            time: "16:00",
+            image: "dish-2.png",
+            calories: "110 kkal",
+            protein: "1.2 g",
+            fiber: "2.5 g",
+            carbs: "24.0 g",
+            description: "Karbohidrat kompleks tradisional pengganti roti manis industri.",
+            tips: "Kukus singkong hingga merekah empuk dengan sejumput garam.",
+          },
+          {
+            type: "Makan Malam",
+            title: "Capcay Kuah Bening Ayam & Udang + Nasi Sedikit",
+            time: "19:00",
+            image: "dish-1.png",
+            calories: "280 kkal",
+            protein: "22.0 g",
+            fiber: "5.0 g",
+            carbs: "32.0 g",
+            description: "Brotoli, kembang kol, wortel, dan sawi putih melengkapi kebutuhan vitamin harian.",
+            tips: "Masak sayuran tidak terlalu layu agar nutrisinya tetap terjaga.",
+          },
+        ],
+      },
+      {
+        dayNumber: 7,
+        focusTitle: "Hari 7: Evaluasi Mingguan & Perayaan Kebiasaan Sehat",
+        meals: [
+          {
+            type: "Sarapan",
+            title: "Pancake Pisang Gandum Tanpa Gula + Telur Mata Sapi",
+            time: "07:00",
+            image: "dish-1.png",
+            calories: "290 kkal",
+            protein: "13.0 g",
+            fiber: "4.5 g",
+            carbs: "38.0 g",
+            description: "Pancake pisang lumat dan tepung gandum utuh yang manis alami.",
+            tips: "Hindari sirup maple buatan; hiasi dengan irisan stroberi segar.",
+          },
+          {
+            type: "Camilan Pagi",
+            title: "Air Kelapa Muda Murni (Tanpa Sirup)",
+            time: "10:30",
+            image: "dish-4.png",
+            calories: "45 kkal",
+            protein: "0.5 g",
+            fiber: "1.0 g",
+            carbs: "10.0 g",
+            description: "Elektrolit alami kalium dan magnesium untuk memulihkan hidrasi anak.",
+            tips: "Minum langsung dari batok kelapa tanpa tambahan sirup cocopandan.",
+          },
+          {
+            type: "Makan Siang",
+            title: "Gurame Bakar Rempah + Sayur Bening Daun Katuk + Nasi",
+            time: "13:00",
+            image: "dish-3.png",
+            calories: "340 kkal",
+            protein: "25.0 g",
+            fiber: "4.0 g",
+            carbs: "40.0 g",
+            description: "Ikan air tawar berdaging tebal dengan bumbu rempah kunyit ketumbar.",
+            tips: "Daun katuk kaya antioksidan dan klorofil segar.",
+          },
+          {
+            type: "Camilan Sore",
+            title: "Puding Agar-Agar Rumput Laut Pepaya (Gula Sangat Rendah)",
+            time: "16:00",
+            image: "dish-2.png",
+            calories: "60 kkal",
+            protein: "1.0 g",
+            fiber: "3.5 g",
+            carbs: "14.0 g",
+            description: "Serat agar-agar alami menjaga keteraturan buang air besar anak.",
+            tips: "Manfaatkan rasa manis dari potongan pepaya matang di dalam agar-agar.",
+          },
+          {
+            type: "Makan Malam",
+            title: "Sup Jamur Tiram Tahu Putih + Telur Dadar Gulung Sayur + Nasi",
+            time: "19:00",
+            image: "dish-1.png",
+            calories: "280 kkal",
+            protein: "17.0 g",
+            fiber: "4.0 g",
+            carbs: "35.0 g",
+            description: "Penutup pekan yang ringan dan menyehatkan metabolisme anak.",
+            tips: "Ajak anak membicarakan menu favoritnya selama 7 hari terakhir.",
+          },
+        ],
+      },
+    ];
+
+    return c.json({
+      success: true,
+      riskCategory,
+      childName: targetChild?.name || "Anak",
+      targetCalories,
+      recommendedMenus: finalRecommended,
+      weeklyPlan,
+    });
+  } catch (error) {
+    console.error("Get meal plan error:", error);
+    return c.json(
+      { error: { message: "Gagal memuat rencana menu sehat." } },
+      500
+    );
+  }
+});
+
+parentRoutes.post("/meal-plan/sync-reminders", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  const json = await c.req.json().catch(() => ({}));
+  const childId = json.childId as string | undefined;
+
+  const standardMealReminders = [
+    { title: "Sarapan Pagi Sehat", time: "07:00", category: "makan" },
+    { title: "Camilan Buah Pagi", time: "10:30", category: "makan" },
+    { title: "Makan Siang Seimbang", time: "13:00", category: "makan" },
+    { title: "Camilan Sore Berserat", time: "16:00", category: "makan" },
+    { title: "Makan Malam Keluarga", time: "19:00", category: "makan" },
+  ];
+
+  try {
+    for (const r of standardMealReminders) {
+      // Check if reminder already exists
+      const [existing] = await drizzleDb
+        .select({ id: reminders.id })
+        .from(reminders)
+        .where(
+          and(
+            eq(reminders.guardianId, session.user.id),
+            eq(reminders.time, r.time),
+            eq(reminders.category, r.category)
+          )
+        )
+        .limit(1);
+
+      if (!existing) {
+        await drizzleDb.insert(reminders).values({
+          guardianId: session.user.id,
+          childId: childId || null,
+          title: r.title,
+          time: r.time,
+          category: r.category,
+          isEnabled: true,
+        });
+      }
+    }
+
+    return c.json({
+      success: true,
+      message: "Jadwal jam makan berhasil disinkronkan ke daftar Pengingat.",
+    });
+  } catch (error) {
+    console.error("Sync meal reminders error:", error);
+    return c.json(
+      { error: { message: "Gagal menyinkronkan pengingat jam makan." } },
+      500
+    );
   }
 });
 

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { eq, sql } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import { drizzleDb } from "../db";
 import { guardians, children, posyandus } from "../db/schema";
 import {
@@ -81,8 +81,22 @@ authRoutes.post("/register", async (c) => {
       })
       .returning();
 
+    const user = {
+      id: guardian.id,
+      email: guardian.email,
+      role: guardian.role || "GUARDIAN",
+      name: guardian.name,
+      posyanduId: guardian.posyanduId ?? null,
+      posyanduName: null,
+    };
+
+    const token = await createSessionToken(user);
+    setSessionCookie(c, token);
+
     return c.json({
       success: true,
+      token,
+      user,
       guardian: {
         id: guardian.id,
         name: guardian.name,
@@ -127,7 +141,12 @@ authRoutes.post("/login", async (c) => {
     const [guardian] = await drizzleDb
       .select()
       .from(guardians)
-      .where(eq(sql`lower(${guardians.email})`, email))
+      .where(
+        or(
+          eq(sql`lower(${guardians.email})`, email),
+          eq(guardians.phone, email)
+        )
+      )
       .limit(1);
 
     if (!guardian) {
@@ -193,7 +212,14 @@ authRoutes.post("/login", async (c) => {
 
     return c.json({
       success: true,
+      token,
       user,
+      guardian: {
+        id: guardian.id,
+        name: guardian.name,
+        email: guardian.email,
+        phone: guardian.phone,
+      },
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -242,11 +268,20 @@ authRoutes.get("/me", async (c) => {
       posyanduName = p?.name ?? null;
     }
 
+    const userData = {
+      id: guardian.id,
+      email: guardian.email,
+      role: guardian.role || "GUARDIAN",
+      name: guardian.name,
+      posyanduId: guardian.posyanduId ?? null,
+      posyanduName,
+    };
+
+    const token = await createSessionToken(userData);
+
     return c.json({
-      user: {
-        ...guardian,
-        posyanduName,
-      },
+      user: userData,
+      token,
     });
   } catch {
     return c.json({ user: session.user });

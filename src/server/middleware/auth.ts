@@ -59,7 +59,13 @@ export function clearSessionCookie(c: Context): void {
 }
 
 export async function getSession(c: Context): Promise<SessionPayload | null> {
-  const token = getCookie(c, SESSION_COOKIE_NAME);
+  let token = getCookie(c, SESSION_COOKIE_NAME);
+  if (!token) {
+    const authHeader = c.req.header("Authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.substring(7).trim();
+    }
+  }
   if (!token) return null;
 
   try {
