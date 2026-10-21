@@ -17,6 +17,10 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+    "types": [
+      "bun-types",
+      "vite/client"
+    ],
     "paths": {
       "@/*": [
         "./src/*"
@@ -35,6 +39,7 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
+    "tests/**/*.ts",
     "vite.config.ts",
     "drizzle.config.ts"
   ],

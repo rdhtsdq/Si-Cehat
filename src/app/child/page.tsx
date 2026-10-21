@@ -263,8 +263,9 @@ export default function ChildDashboardPage() {
               <p className="text-xs font-black uppercase tracking-[0.16em] text-[#247a4d]">Petualangan Hari Ini</p>
               <h1 className="display-font text-4xl font-black text-[#173d31] sm:text-5xl">Hai, {progress.childName}!</h1>
             </div>
-            <nav className="flex gap-2" aria-label="Aksi teman">
+            <nav className="flex flex-wrap gap-2" aria-label="Aksi teman">
               <Link className="game-button rounded-full bg-[#f4b942] px-5 py-3 text-sm font-black text-[#173d31]" href="/chat">Ngobrol</Link>
+              <Link className="game-button rounded-full bg-[#247a4d] px-5 py-3 text-sm font-black text-white" href={activeChildId ? `/playlab?childId=${encodeURIComponent(activeChildId)}` : "/playlab"}>Main Game</Link>
               <Link className="rounded-full border-2 border-[#173d31] bg-white/75 px-4 py-3 text-sm font-black text-[#173d31]" href="/avatar">Ganti Teman</Link>
             </nav>
           </div>
@@ -296,6 +297,29 @@ export default function ChildDashboardPage() {
           </div>
 
           <div className="relative grid gap-4 lg:grid-cols-2">
+            {/* PlayLab Mini-Game Special Mission */}
+            <article className="relative rounded-[2rem] border-3 border-[#173d31] bg-[#fff9e9] p-4 sm:p-5 shadow-[5px_6px_0_#173d31] lg:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="grid h-12 w-12 sm:h-14 sm:w-14 shrink-0 place-items-center rounded-2xl border-2 border-[#173d31] bg-[#75c8e8] text-2xl shadow-[2px_2px_0_#173d31]">
+                  🥗
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-[#247a4d]">Si-Cehat PlayLab</span>
+                    <span className="rounded-full bg-[#f4b942] px-2 py-0.5 text-[10px] font-black text-[#173d31]">+75 XP</span>
+                  </div>
+                  <h3 className="display-font text-xl sm:text-2xl font-black text-[#173d31]">Piring Sehat Nimbo</h3>
+                  <p className="text-xs sm:text-sm font-bold text-[#285648]">Bantu Nimbo menyusun porsi makanan bergizi seimbang Isi Piringku.</p>
+                </div>
+              </div>
+              <Link
+                href={activeChildId ? `/playlab?childId=${encodeURIComponent(activeChildId)}` : "/playlab"}
+                className="game-button w-full sm:w-auto shrink-0 text-center rounded-2xl bg-[#247a4d] px-5 py-3 text-xs sm:text-sm font-black text-white"
+              >
+                Mulai Petualangan Piring
+              </Link>
+            </article>
+
             <article className="relative rounded-[2rem_1rem_2rem_1rem] border-3 border-[#173d31] bg-[#d9f0f7] p-5 shadow-[5px_6px_0_#173d31]">
               <div className="flex items-start justify-between gap-3"><MissionIcon type="water" /><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-[#173d31]">+5 XP</span></div>
               <h3 className="display-font mt-2 text-2xl font-black text-[#173d31]">Danau Air Putih</h3>

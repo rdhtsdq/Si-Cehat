@@ -11,6 +11,7 @@ const AdminLoginPage = lazy(() => import("@/app/admin/login/page"));
 const AdminPage = lazy(() => import("@/client/pages/AdminPage"));
 const ApiDocsPage = lazy(() => import("@/app/api-docs/page"));
 const PlayLabGamePage = lazy(() => import("@/client/pages/PlayLabGamePage"));
+const GameExitPage = lazy(() => import("@/client/pages/GameExitPage"));
 
 function RouteLoadingFallback() {
   return (
@@ -20,11 +21,25 @@ function RouteLoadingFallback() {
   );
 }
 
+function RootPageRouter() {
+  const hasGameParams =
+    typeof window !== "undefined" &&
+    (window.location.search.includes("bootstrap=") ||
+      window.location.search.includes("sessionId=") ||
+      window.location.search.includes("token="));
+
+  if (hasGameParams) {
+    return <PlayLabGamePage />;
+  }
+
+  return <OnboardingPage />;
+}
+
 export function App() {
   return (
     <Suspense fallback={<RouteLoadingFallback />}>
       <Switch>
-        <Route path="/" component={OnboardingPage} />
+        <Route path="/" component={RootPageRouter} />
         <Route path="/avatar" component={AvatarPage} />
         <Route path="/child" component={ChildPage} />
         <Route path="/chat" component={ChatPage} />
@@ -34,7 +49,10 @@ export function App() {
         <Route path="/admin" component={AdminPage} />
         <Route path="/playlab" component={PlayLabGamePage} />
         <Route path="/playlab/piring-sehat" component={PlayLabGamePage} />
+        <Route path="/game" component={PlayLabGamePage} />
         <Route path="/game/piring-sehat" component={PlayLabGamePage} />
+        <Route path="/minigame" component={PlayLabGamePage} />
+        <Route path="/exit" component={GameExitPage} />
         <Route path="/api-docs" component={ApiDocsPage} />
         <Route path="/docs" component={ApiDocsPage} />
         <Route>

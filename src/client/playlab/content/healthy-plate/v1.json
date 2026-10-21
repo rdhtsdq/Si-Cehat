@@ -1,0 +1,231 @@
+{
+  "version": "1.0.0",
+  "rulesVersion": "1.0.0",
+  "gameSlug": "piring-sehat-nimbo",
+  "title": "Piring Sehat Nimbo",
+  "description": "Panduan interaktif Isi Piringku Kemenkes RI untuk mengenalkan makanan bergizi seimbang dan mencegah risiko diabetes anak.",
+  "competency": "Mengenali variasi makanan dan prinsip dasar piring makan seimbang Isi Piringku.",
+  "foods": [
+    {
+      "id": "nasi-merah",
+      "name": "Nasi Merah",
+      "iconId": "nasi-merah",
+      "category": "karbo",
+      "isHealthy": true,
+      "color": "#fef3c7",
+      "tip": "Kaya serat alami, menjaga energi stabil dan gula darah aman."
+    },
+    {
+      "id": "kentang-rebus",
+      "name": "Kentang Rebus",
+      "iconId": "kentang-rebus",
+      "category": "karbo",
+      "isHealthy": true,
+      "color": "#fef3c7",
+      "tip": "Karbohidrat alami pengganti nasi yang kaya kalium."
+    },
+    {
+      "id": "jagung-manis",
+      "name": "Jagung Manis",
+      "iconId": "jagung-manis",
+      "category": "karbo",
+      "isHealthy": true,
+      "color": "#fef3c7",
+      "tip": "Manis alami tinggi serat tanpa pemanis buatan."
+    },
+    {
+      "id": "ikan-bakar",
+      "name": "Ikan Bakar",
+      "iconId": "ikan-bakar",
+      "category": "protein",
+      "isHealthy": true,
+      "color": "#dbeafe",
+      "tip": "Kaya omega-3 dan protein berkualitas untuk kecerdasan otak."
+    },
+    {
+      "id": "telur-rebus",
+      "name": "Telur Rebus",
+      "iconId": "telur-rebus",
+      "category": "protein",
+      "isHealthy": true,
+      "color": "#dbeafe",
+      "tip": "Protein lengkap ramah metabolisme dan pembangun otot."
+    },
+    {
+      "id": "tempe-bacem",
+      "name": "Tempe Panggang",
+      "iconId": "tempe-bacem",
+      "category": "protein",
+      "isHealthy": true,
+      "color": "#dbeafe",
+      "tip": "Protein nabati lokal kaya kalsium dan probiotik pencernaan."
+    },
+    {
+      "id": "bayam-bening",
+      "name": "Sayur Bayam",
+      "iconId": "bayam-bening",
+      "category": "sayur",
+      "isHealthy": true,
+      "color": "#dcfce7",
+      "tip": "Kaya zat besi dan serat pelindung daya tahan tubuh."
+    },
+    {
+      "id": "wortel-rebus",
+      "name": "Wortel Manis",
+      "iconId": "wortel-rebus",
+      "category": "sayur",
+      "isHealthy": true,
+      "color": "#dcfce7",
+      "tip": "Tinggi vitamin A untuk kesehatan mata anak yang gemar belajar."
+    },
+    {
+      "id": "sayur-sop",
+      "name": "Sayur Sop",
+      "iconId": "sayur-sop",
+      "category": "sayur",
+      "isHealthy": true,
+      "color": "#dcfce7",
+      "tip": "Aneka ragam sayur bervitamin yang menyegarkan tubuh."
+    },
+    {
+      "id": "pisang-barangan",
+      "name": "Pisang",
+      "iconId": "pisang-barangan",
+      "category": "buah",
+      "isHealthy": true,
+      "color": "#ffedd5",
+      "tip": "Buah lokal lembut kaya kalium untuk stamina harian."
+    },
+    {
+      "id": "pepaya-manis",
+      "name": "Pepaya Segar",
+      "iconId": "pepaya-manis",
+      "category": "buah",
+      "isHealthy": true,
+      "color": "#ffedd5",
+      "tip": "Kaya vitamin C dan enzim pelancar saluran cerna."
+    },
+    {
+      "id": "apel-segar",
+      "name": "Apel Renyah",
+      "iconId": "apel-segar",
+      "category": "buah",
+      "isHealthy": true,
+      "color": "#ffedd5",
+      "tip": "Manis renyah alami mengenyangkan tanpa lonjakan gula."
+    },
+    {
+      "id": "donat-cokelat",
+      "name": "Donat Gula",
+      "iconId": "donat-cokelat",
+      "category": "distractor",
+      "isHealthy": false,
+      "color": "#fee2e2",
+      "tip": "Tinggi gula rafinasi dan minyak jenuh, berisiko lonjakan gula darah."
+    },
+    {
+      "id": "minuman-soda",
+      "name": "Soda Manis",
+      "iconId": "minuman-soda",
+      "category": "distractor",
+      "isHealthy": false,
+      "color": "#fee2e2",
+      "tip": "Mengandung lebih dari 30g gula cair tanpa nutrisi, hindari untuk konsumsi harian."
+    }
+  ],
+  "rounds": [
+    {
+      "roundNumber": 1,
+      "title": "Lengkapi Makanan Pokok & Lauk",
+      "prompt": "Pilih 1 sumber karbohidrat dan 1 lauk protein untuk memberi energi pada tubuh Nimbo!",
+      "targetSlots": [
+        "karbo",
+        "protein"
+      ],
+      "availableFoodIds": [
+        "nasi-merah",
+        "kentang-rebus",
+        "ikan-bakar",
+        "telur-rebus",
+        "donat-cokelat"
+      ]
+    },
+    {
+      "roundNumber": 2,
+      "title": "Tambahkan Sayuran Berwarna",
+      "prompt": "Tubuh kita butuh serat dan vitamin! Pilih 1 porsi sayuran hijau atau oranye ya.",
+      "targetSlots": [
+        "sayur"
+      ],
+      "availableFoodIds": [
+        "bayam-bening",
+        "wortel-rebus",
+        "sayur-sop",
+        "minuman-soda"
+      ]
+    },
+    {
+      "roundNumber": 3,
+      "title": "Sempurnakan dengan Buah Segar",
+      "prompt": "Lengkapi piring sehat dengan buah segar manis alami. Awas makanan manis buatan!",
+      "targetSlots": [
+        "buah"
+      ],
+      "availableFoodIds": [
+        "pisang-barangan",
+        "apel-segar",
+        "pepaya-manis",
+        "donat-cokelat"
+      ]
+    }
+  ],
+  "knowledgeAssessment": {
+    "instrumentVersion": "1.0.0",
+    "questions": [
+      {
+        "id": "q1_portion",
+        "question": "Menurut panduan Isi Piringku, berapa porsi ideal untuk sayuran dan buah-buahan?",
+        "options": [
+          {
+            "id": "setengah_piring",
+            "text": "1/2 Piring (Separuh porsi piring penuh sayur dan buah)",
+            "isCorrect": true
+          },
+          {
+            "id": "sedikit_saja",
+            "text": "Sedikit saja, cukup 1 sendok kecil",
+            "isCorrect": false
+          },
+          {
+            "id": "tidak_perlu",
+            "text": "Tidak perlu makan sayur",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Separuh (1/2) piring makan kita dianjurkan diisi oleh sayur dan buah untuk serat serta vitamin pelindung tubuh."
+      },
+      {
+        "id": "q2_drink",
+        "question": "Minuman apa yang paling sehat untuk menemani makanan seimbang kita?",
+        "options": [
+          {
+            "id": "air_putih",
+            "text": "Air putih segar",
+            "isCorrect": true
+          },
+          {
+            "id": "minuman_soda",
+            "text": "Minuman bersoda manis",
+            "isCorrect": false
+          },
+          {
+            "id": "teh_manis_pekat",
+            "text": "Teh manis sangat pekat",
+            "isCorrect": false
+          }
+        ],
+        "explanation": "Air putih menghidrasi tubuh tanpa tambahan gula yang berisiko memicu diabetes."
+      }
+    ]
+  }
+}

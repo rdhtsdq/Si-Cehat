@@ -2,6 +2,41 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
+import http from "node:http";
+
+/**
+ * Bridge plugin for Flutter WebView development.
+ * Allows Flutter apps hardcoded or configured to http://localhost:5173 to reach the unified Si-Cehat app.
+ */
+function port5173BridgePlugin(): Plugin {
+  return {
+    name: "port-5173-bridge",
+    configureServer(server) {
+      const port = Number(process.env.VITE_BRIDGE_PORT || 5173);
+      if (server.config.server.port === port) return;
+
+      const bridgeServer = http.createServer((req, res) => {
+        server.middlewares(req, res);
+      });
+
+      bridgeServer.listen(port, "0.0.0.0", () => {
+        console.log(`[PlayLab Bridge] Listening on http://localhost:${port} -> forwarding to unified app!`);
+      });
+
+      bridgeServer.on("error", (err: any) => {
+        if (err.code === "EADDRINUSE") {
+          console.log(`[PlayLab Bridge] Port ${port} already in use, skipping secondary listener.`);
+        } else {
+          console.warn(`[PlayLab Bridge] Port ${port} warning:`, err.message);
+        }
+      });
+
+      server.httpServer?.on("close", () => {
+        bridgeServer.close();
+      });
+    },
+  };
+}
 
 /**
  * In-process Hono API middleware for Vite dev server.
@@ -79,7 +114,7 @@ function honoDevPlugin(): Plugin {
 const rootDir = import.meta.dirname;
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), honoDevPlugin()],
+  plugins: [react(), tailwindcss(), honoDevPlugin(), port5173BridgePlugin()],
   resolve: {
     alias: {
       "@": path.resolve(rootDir, "./src"),
