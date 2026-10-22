@@ -34,7 +34,16 @@ const { cleanUrl, searchPath } = normalizeDatabaseUrl(env.DATABASE_URL);
 const globalForDrizzle = globalThis as unknown as {
   pgSql?: ReturnType<typeof postgres>;
   drizzleDb?: ReturnType<typeof drizzle<typeof schema>>;
+  currentDbUrl?: string;
 };
+
+if (globalForDrizzle.currentDbUrl && globalForDrizzle.currentDbUrl !== cleanUrl) {
+  try {
+    globalForDrizzle.pgSql?.end();
+  } catch {}
+  globalForDrizzle.pgSql = undefined;
+  globalForDrizzle.drizzleDb = undefined;
+}
 
 export const pgSql =
   globalForDrizzle.pgSql ??
@@ -51,6 +60,7 @@ export const drizzleDb =
 if (env.NODE_ENV !== "production") {
   globalForDrizzle.pgSql = pgSql;
   globalForDrizzle.drizzleDb = drizzleDb;
+  globalForDrizzle.currentDbUrl = cleanUrl;
 }
 
 export { schema };

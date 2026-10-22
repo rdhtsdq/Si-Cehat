@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
@@ -113,24 +113,33 @@ function honoDevPlugin(): Plugin {
 
 const rootDir = import.meta.dirname;
 
-export default defineConfig({
-  plugins: [react(), tailwindcss(), honoDevPlugin(), port5173BridgePlugin()],
-  resolve: {
-    alias: {
-      "@": path.resolve(rootDir, "./src"),
-      "next/link": path.resolve(rootDir, "./src/client/compat/next-link.tsx"),
-      "next/navigation": path.resolve(rootDir, "./src/client/compat/next-navigation.ts"),
-      "next-auth/react": path.resolve(rootDir, "./src/client/compat/next-auth-react.ts"),
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  for (const [key, value] of Object.entries(env)) {
+    if (!process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+
+  return {
+    plugins: [react(), tailwindcss(), honoDevPlugin(), port5173BridgePlugin()],
+    resolve: {
+      alias: {
+        "@": path.resolve(rootDir, "./src"),
+        "next/link": path.resolve(rootDir, "./src/client/compat/next-link.tsx"),
+        "next/navigation": path.resolve(rootDir, "./src/client/compat/next-navigation.ts"),
+        "next-auth/react": path.resolve(rootDir, "./src/client/compat/next-auth-react.ts"),
+      },
     },
-  },
-  server: {
-    host: true,
-    port: 3000,
-    strictPort: false,
-  },
-  build: {
-    outDir: "dist",
-    emptyOutDir: true,
-    sourcemap: false,
-  },
+    server: {
+      host: true,
+      port: 3000,
+      strictPort: false,
+    },
+    build: {
+      outDir: "dist",
+      emptyOutDir: true,
+      sourcemap: false,
+    },
+  };
 });

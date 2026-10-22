@@ -14,6 +14,7 @@ import {
   recipes,
   educationArticles,
 } from "./schema";
+import { hashPassword } from "../utils/password";
 
 async function main() {
   console.log("Seeding CMS, Admin, Posyandu & Baseline Content (Drizzle ORM)...");
@@ -79,10 +80,7 @@ async function main() {
     .limit(1);
 
   if (!existingAdmin) {
-    const adminPasswordHash = await Bun.password.hash("AdminSehat2026!", {
-      algorithm: "bcrypt",
-      cost: 10,
-    });
+    const adminPasswordHash = await hashPassword("AdminSehat2026!");
     await drizzleDb.insert(guardians).values({
       email: "admin@sicehat.id",
       passwordHash: adminPasswordHash,
@@ -104,10 +102,7 @@ async function main() {
     .limit(1);
 
   if (!existingMelatiAdmin) {
-    const posyanduPasswordHash = await Bun.password.hash("PosyanduSehat2026!", {
-      algorithm: "bcrypt",
-      cost: 10,
-    });
+    const posyanduPasswordHash = await hashPassword("PosyanduSehat2026!");
     await drizzleDb.insert(guardians).values({
       email: "posyandu.melati@sicehat.id",
       passwordHash: posyanduPasswordHash,
@@ -129,10 +124,7 @@ async function main() {
     .limit(1);
 
   if (!existingMawarAdmin) {
-    const posyanduPasswordHash = await Bun.password.hash("PosyanduSehat2026!", {
-      algorithm: "bcrypt",
-      cost: 10,
-    });
+    const posyanduPasswordHash = await hashPassword("PosyanduSehat2026!");
     await drizzleDb.insert(guardians).values({
       email: "posyandu.mawar@sicehat.id",
       passwordHash: posyanduPasswordHash,
@@ -155,10 +147,7 @@ async function main() {
     .limit(1);
 
   if (!existingMother) {
-    const motherPasswordHash = await Bun.password.hash("PasswordSehat123!", {
-      algorithm: "bcrypt",
-      cost: 10,
-    });
+    const motherPasswordHash = await hashPassword("PasswordSehat123!");
     const [mother] = await drizzleDb
       .insert(guardians)
       .values({

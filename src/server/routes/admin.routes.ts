@@ -23,6 +23,7 @@ import {
   botConfigs,
 } from "../db/schema";
 import { verifyAdmin, verifySuperAdmin } from "../middleware/auth";
+import { hashPassword } from "../utils/password";
 import { getResolvedBotConfig, maskApiKey } from "../services/bot-config";
 
 export const adminRoutes = new Hono();
@@ -596,10 +597,7 @@ adminRoutes.post("/posyandus", async (c) => {
         .limit(1);
 
       if (!emailCheck) {
-        const passwordHash = await Bun.password.hash(adminPassword, {
-          algorithm: "bcrypt",
-          cost: 10,
-        });
+        const passwordHash = await hashPassword(adminPassword);
 
         const [adminUser] = await drizzleDb
           .insert(guardians)
@@ -754,10 +752,7 @@ adminRoutes.post("/posyandus/:id/admins", async (c) => {
       );
     }
 
-    const passwordHash = await Bun.password.hash(parsed.data.password, {
-      algorithm: "bcrypt",
-      cost: 10,
-    });
+    const passwordHash = await hashPassword(parsed.data.password);
 
     const [createdAdmin] = await drizzleDb
       .insert(guardians)
