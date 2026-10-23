@@ -20,10 +20,10 @@ export const FoodCardGrid: React.FC<FoodCardGridProps> = ({
     <div className="w-full max-w-md mx-auto mt-2">
       <div className="flex items-center justify-between mb-1.5 px-1">
         <span className="text-[11px] font-black uppercase tracking-wider text-[#285648]">
-          Pilihan Makanan (Tarik atau Ketuk)
+          Pilihan Makanan
         </span>
         <span className="text-[10px] font-bold text-[#285648]/60">
-          {foods.length} Menu Tersedia
+          Ketuk atau tarik
         </span>
       </div>
 

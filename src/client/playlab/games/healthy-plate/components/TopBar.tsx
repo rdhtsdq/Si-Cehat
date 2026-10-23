@@ -31,10 +31,10 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         <div className="flex flex-col items-center">
           <span className="text-xs font-black tracking-wide text-[#173d31]">
-            Piring Sehat Nimbo
+            Piring Sehat
           </span>
           <span className="text-[10px] font-bold text-[#285648]/80">
-            Babak {currentRound} dari {totalRounds}
+            Babak {currentRound}/{totalRounds}
           </span>
         </div>
 
@@ -51,9 +51,9 @@ export const TopBar: React.FC<TopBarProps> = ({
             <div className="flex justify-center mb-2">
               <NimboAvatar mood="thinking" size={48} />
             </div>
-            <h3 className="text-base font-black text-[#173d31]">Mau keluar sekarang?</h3>
+            <h3 className="text-base font-black text-[#173d31]">Keluar Game?</h3>
             <p className="mt-1 text-xs font-bold text-[#285648]">
-              Progres piring sehat babak ini belum tersimpan jika kamu keluar.
+              Progres babak ini belum tersimpan jika kamu keluar.
             </p>
             <div className="mt-4 flex gap-2">
               <button
@@ -66,7 +66,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 onClick={onExit}
                 className="game-btn flex-1 rounded-xl bg-[#fee2e2] py-2 text-xs font-black text-[#991b1b]"
               >
-                Ya, Keluar
+                Keluar
               </button>
             </div>
           </div>

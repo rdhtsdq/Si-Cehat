@@ -28,9 +28,10 @@ export const HealthyPlateGame: React.FC = () => {
   });
 
   const [nimboSpeech, setNimboSpeech] = useState(
-    'Halo Teman Si-Cehat! Ayo kita pilih makanan bergizi seimbang untuk piring sehatmu hari ini.'
+    'Yuk, susun piring sehat bergizi seimbang!'
   );
   const [nimboMood, setNimboMood] = useState<NimboMood>('happy');
+  const [audioKey, setAudioKey] = useState<string>('intro');
 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,9 +94,10 @@ export const HealthyPlateGame: React.FC = () => {
   );
 
   const handleSelectFood = (food: FoodItem) => {
+    setAudioKey(`food-${food.id}`);
     if (food.category === 'distractor') {
       setNimboMood('thinking');
-      setNimboSpeech(`${food.name}? ${food.tip} Ganti dengan buah segar ya!`);
+      setNimboSpeech(`${food.name}? ${food.tip} Pilih menu sehat ya!`);
       return;
     }
 
@@ -105,7 +107,7 @@ export const HealthyPlateGame: React.FC = () => {
     }));
 
     setNimboMood('excited');
-    setNimboSpeech(`Pilihan cerdas! ${food.name}: ${food.tip}`);
+    setNimboSpeech(`Hebat! ${food.name}: ${food.tip}`);
 
     if (sessionId) {
       gameApi.sendEvent(sessionId, {
@@ -122,11 +124,13 @@ export const HealthyPlateGame: React.FC = () => {
       [category]: null,
     }));
     setNimboMood('happy');
-    setNimboSpeech(`Bagian ${category} dikosongkan. Pilih makanan lainnya ya.`);
+    setAudioKey('remove-food');
+    setNimboSpeech('Pilih makanan lain untuk piringmu.');
   };
 
   const handleStartGame = () => {
     setPhase('ROUND');
+    setAudioKey(`round-${currentRound.roundNumber}`);
     setNimboSpeech(currentRound.prompt);
     setNimboMood('happy');
   };
@@ -135,11 +139,13 @@ export const HealthyPlateGame: React.FC = () => {
     if (currentRoundIndex + 1 < content.rounds.length) {
       const nextIndex = currentRoundIndex + 1;
       setCurrentRoundIndex(nextIndex);
+      setAudioKey(`round-${content.rounds[nextIndex].roundNumber}`);
       setNimboSpeech(content.rounds[nextIndex].prompt);
       setNimboMood('happy');
     } else {
       setPhase('QUIZ');
-      setNimboSpeech('Piring sehatmu sudah lengkap! Sekarang, jawab 2 pertanyaan kuis kilat ini ya.');
+      setAudioKey('quiz-intro');
+      setNimboSpeech('Piringmu lengkap! Yuk jawab 2 kuis kilat ini.');
       setNimboMood('thinking');
     }
   };
@@ -313,6 +319,7 @@ export const HealthyPlateGame: React.FC = () => {
     setPlate({ karbo: null, protein: null, sayur: null, buah: null });
     setCurrentRoundIndex(0);
     setPhase('ROUND');
+    setAudioKey('round-1');
     setNimboSpeech(content.rounds[0].prompt);
     setNimboMood('happy');
   };
@@ -331,7 +338,7 @@ export const HealthyPlateGame: React.FC = () => {
       />
 
       <main className="my-auto mx-auto w-full max-w-md py-1">
-        <NimboCoach speech={nimboSpeech} mood={nimboMood} />
+        <NimboCoach speech={nimboSpeech} mood={nimboMood} audioKey={audioKey} />
 
         {/* PHASE 0: INTRO SCREEN */}
         {phase === 'INTRO' && (
@@ -341,18 +348,18 @@ export const HealthyPlateGame: React.FC = () => {
               Piring Sehat Nimbo
             </h1>
             <p className="mt-1.5 text-xs font-bold text-[#285648] leading-relaxed">
-              Bantu Nimbo menyusun makanan seimbang: <br />
+              Susun piring seimbang dengan:{' '}
               <span className="text-[#92400e]">Karbohidrat</span>,{' '}
               <span className="text-[#166534]">Sayuran</span>,{' '}
-              <span className="text-[#1e40af]">Lauk Protein</span>, dan{' '}
-              <span className="text-[#9a3412]">Buah Segar</span>!
+              <span className="text-[#1e40af]">Protein</span>, dan{' '}
+              <span className="text-[#9a3412]">Buah</span>.
             </p>
 
             <button
               onClick={handleStartGame}
               className="game-btn mt-5 w-full rounded-xl bg-[#247a4d] py-3 text-xs font-black text-white active:translate-y-0.5 cursor-pointer"
             >
-              Mulai Susun Piring
+              Mulai Main
             </button>
           </div>
         )}
@@ -373,12 +380,12 @@ export const HealthyPlateGame: React.FC = () => {
                 className="game-btn mt-3 w-full rounded-xl bg-[#247a4d] py-2.5 text-xs font-black text-white cursor-pointer active:translate-y-0.5"
               >
                 {currentRoundIndex + 1 < content.rounds.length
-                  ? 'Bagus Sekali! Lanjut Babak Berikutnya'
-                  : 'Piring Lengkap! Lanjut ke Kuis Kilat'}
+                  ? `Lanjut Babak ${currentRoundIndex + 2}`
+                  : 'Lanjut ke Kuis'}
               </button>
             ) : (
               <p className="mt-2 text-center text-[10px] font-bold text-[#285648]/80">
-                Pilih atau tarik makanan di bawah ke piring Nimbo
+                Pilih makanan di bawah untuk mengisi piring
               </p>
             )}
 
@@ -406,7 +413,7 @@ export const HealthyPlateGame: React.FC = () => {
       </main>
 
       <footer className="text-center text-[10px] text-[#285648]/60 font-semibold pt-2">
-        Si-Cehat PlayLab v{content.version} • Panduan Isi Piringku Kemenkes RI
+        PlayLab • Isi Piringku Kemenkes RI
       </footer>
     </div>
   );

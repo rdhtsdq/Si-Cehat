@@ -60,12 +60,12 @@ export const PlateArea: React.FC<PlateAreaProps> = ({
           }`}
         >
           <FoodIcon iconId={plate.karbo ? (plate.karbo.iconId || plate.karbo.id) : 'karbo'} className="w-8 h-8" />
-          <span className="text-[11px] font-black text-[#92400e]">
+          <span className="text-[11px] font-black text-[#92400e] truncate w-full px-1">
             {plate.karbo ? plate.karbo.name : 'Karbohidrat'}
           </span>
           {plate.karbo ? (
             <span className="flex items-center gap-0.5 text-[9px] text-[#15803d] font-bold">
-              <CheckIcon className="w-2.5 h-2.5" /> Lengkap
+              <CheckIcon className="w-2.5 h-2.5" />
             </span>
           ) : (
             <span className="text-[8px] text-[#92400e]/60">1/3 piring</span>
@@ -87,12 +87,12 @@ export const PlateArea: React.FC<PlateAreaProps> = ({
           }`}
         >
           <FoodIcon iconId={plate.sayur ? (plate.sayur.iconId || plate.sayur.id) : 'sayur'} className="w-8 h-8" />
-          <span className="text-[11px] font-black text-[#166534]">
+          <span className="text-[11px] font-black text-[#166534] truncate w-full px-1">
             {plate.sayur ? plate.sayur.name : 'Sayuran'}
           </span>
           {plate.sayur ? (
             <span className="flex items-center gap-0.5 text-[9px] text-[#15803d] font-bold">
-              <CheckIcon className="w-2.5 h-2.5" /> Lengkap
+              <CheckIcon className="w-2.5 h-2.5" />
             </span>
           ) : (
             <span className="text-[8px] text-[#166534]/60">1/3 piring</span>
@@ -114,12 +114,12 @@ export const PlateArea: React.FC<PlateAreaProps> = ({
           }`}
         >
           <FoodIcon iconId={plate.protein ? (plate.protein.iconId || plate.protein.id) : 'protein'} className="w-8 h-8" />
-          <span className="text-[11px] font-black text-[#1e40af]">
-            {plate.protein ? plate.protein.name : 'Lauk Pauk'}
+          <span className="text-[11px] font-black text-[#1e40af] truncate w-full px-1">
+            {plate.protein ? plate.protein.name : 'Protein'}
           </span>
           {plate.protein ? (
             <span className="flex items-center gap-0.5 text-[9px] text-[#15803d] font-bold">
-              <CheckIcon className="w-2.5 h-2.5" /> Lengkap
+              <CheckIcon className="w-2.5 h-2.5" />
             </span>
           ) : (
             <span className="text-[8px] text-[#1e40af]/60">1/6 piring</span>
@@ -141,12 +141,12 @@ export const PlateArea: React.FC<PlateAreaProps> = ({
           }`}
         >
           <FoodIcon iconId={plate.buah ? (plate.buah.iconId || plate.buah.id) : 'buah'} className="w-8 h-8" />
-          <span className="text-[11px] font-black text-[#9a3412]">
-            {plate.buah ? plate.buah.name : 'Buah Segar'}
+          <span className="text-[11px] font-black text-[#9a3412] truncate w-full px-1">
+            {plate.buah ? plate.buah.name : 'Buah'}
           </span>
           {plate.buah ? (
             <span className="flex items-center gap-0.5 text-[9px] text-[#15803d] font-bold">
-              <CheckIcon className="w-2.5 h-2.5" /> Lengkap
+              <CheckIcon className="w-2.5 h-2.5" />
             </span>
           ) : (
             <span className="text-[8px] text-[#9a3412]/60">1/6 piring</span>
