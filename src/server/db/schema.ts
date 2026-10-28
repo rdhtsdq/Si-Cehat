@@ -218,6 +218,17 @@ export const notifications = pgTable("Notification", {
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 });
 
+export const deviceTokens = pgTable("DeviceToken", {
+  id: text("id").primaryKey().$defaultFn(uuidDefault),
+  guardianId: text("guardianId")
+    .notNull()
+    .references(() => guardians.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  token: text("token").notNull().unique(),
+  platform: text("platform").notNull().default("android"),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  lastSeenAt: timestamp("lastSeenAt", { mode: "date" }).notNull().defaultNow(),
+});
+
 export const recipes = pgTable("Recipe", {
   id: text("id").primaryKey().$defaultFn(uuidDefault),
   title: text("title").notNull(),

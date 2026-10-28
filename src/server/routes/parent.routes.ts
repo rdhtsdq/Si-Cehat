@@ -16,6 +16,7 @@ import {
   educationArticles,
   consultations,
   notifications,
+  deviceTokens,
 } from "../db/schema";
 import { getSession } from "../middleware/auth";
 import { createNotification } from "../services/notifications";
@@ -2269,6 +2270,93 @@ parentRoutes.delete("/reminders/:id", async (c) => {
   } catch (error) {
     console.error("Delete reminder error:", error);
     return c.json({ error: { message: "Gagal menghapus reminder." } }, 500);
+  }
+});
+
+// 8b. Device tokens for FCM push
+const deviceTokenSchema = z.object({
+  token: z.string().trim().min(20).max(4096),
+  platform: z.enum(["android", "ios", "web"]).default("android"),
+});
+
+parentRoutes.post("/notifications/devices", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  const json = await c.req.json().catch(() => null);
+  const parsed = deviceTokenSchema.safeParse(json);
+  if (!parsed.success) {
+    return c.json(
+      {
+        error: {
+          message:
+            parsed.error.issues[0]?.message || "Token perangkat tidak valid.",
+        },
+      },
+      400
+    );
+  }
+
+  try {
+    await drizzleDb
+      .insert(deviceTokens)
+      .values({
+        guardianId: session.user.id,
+        token: parsed.data.token,
+        platform: parsed.data.platform,
+      })
+      .onConflictDoUpdate({
+        target: deviceTokens.token,
+        set: {
+          guardianId: session.user.id,
+          platform: parsed.data.platform,
+          lastSeenAt: new Date(),
+        },
+      });
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Register device token error:", error);
+    return c.json(
+      { error: { message: "Gagal mendaftarkan perangkat." } },
+      500
+    );
+  }
+});
+
+parentRoutes.delete("/notifications/devices", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  const body = await c.req.json().catch(() => null);
+  const token =
+    c.req.query("token") ??
+    (body && typeof body.token === "string" ? body.token : null);
+
+  if (!token) {
+    return c.json({ error: { message: "Token perangkat wajib diisi." } }, 400);
+  }
+
+  try {
+    await drizzleDb
+      .delete(deviceTokens)
+      .where(
+        and(
+          eq(deviceTokens.token, token),
+          eq(deviceTokens.guardianId, session.user.id)
+        )
+      );
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Delete device token error:", error);
+    return c.json(
+      { error: { message: "Gagal menghapus perangkat." } },
+      500
+    );
   }
 });
 

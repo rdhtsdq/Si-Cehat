@@ -47,6 +47,8 @@ const serverEnvSchema = z.object({
   AI_BASE_URL: z.string().optional().default("https://api.openai.com/v1"),
   AI_API_KEY: z.string().optional().default(""),
   AI_MODEL: z.string().optional().default("gpt-4o-mini"),
+  FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
