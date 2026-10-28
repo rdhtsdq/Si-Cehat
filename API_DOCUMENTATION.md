@@ -736,6 +736,14 @@ Notifikasi dibuat otomatis saat registrasi (selamat datang), pembuatan pengingat
 
 Semua endpoint memerlukan sesi login dan hanya mengembalikan/mengubah data milik guardian yang sedang login.
 
+#### Device token FCM
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/notifications/devices` | Daftarkan/refresh token FCM, body `{ "token": "...", "platform": "android" }`. |
+| `DELETE` | `/api/notifications/devices?token=...` | Hapus token saat logout. |
+
+Tanpa kredensial Firebase (`FIREBASE_SERVICE_ACCOUNT_JSON` atau `GOOGLE_APPLICATION_CREDENTIALS`), pengiriman push dilewati dan API tetap berjalan normal.
+
 #### Implementasi: JavaScript (fetch)
 ```javascript
 const response = await fetch("/api/notifications");
@@ -747,6 +755,40 @@ await fetch(`/api/notifications/${notifications[0].id}`, {
   body: JSON.stringify({ isRead: true })
 });
 ```
+
+---
+
+### 3.26. Modul Nutrisi - `/api/nutrition`
+Katalog makanan memakai nilai per 100 g. Kalkulasi batch bisa menyertakan `childId` untuk membandingkan total dengan target harian anak.
+
+| Method | Endpoint | Auth | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/nutrition/foods?search=&category=&limit=` | Publik | Katalog makanan. |
+| `POST` | `/api/nutrition/calculate` | Publik | Hitung satu makanan (`foodId`/`foodName`, `weightGram`). |
+| `POST` | `/api/nutrition/calculate-batch` | Publik/opsional | Hitung beberapa item; `childId` opsional untuk target & persen. |
+| `GET` | `/api/nutrition/target?childId=` | Login | Target harian anak (default AKG bila belum ada). |
+| `PUT` | `/api/nutrition/target` | Login | Simpan target manual. |
+| `GET` | `/api/nutrition/summary?childId=&date=` | Login | Total asupan hari itu vs target. |
+| `POST` | `/api/food-diary/batch` | Login | Simpan beberapa item ke diary dalam satu transaksi. |
+
+Contoh batch:
+
+```javascript
+const response = await fetch("/api/nutrition/calculate-batch", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    childId: "c10e8400-e29b-41d4-a716-446655440001",
+    items: [
+      { foodName: "nasi", weightGram: 150 },
+      { foodName: "tempe goreng", weightGram: 50 }
+    ]
+  })
+});
+const { items, totals, target, percent } = await response.json();
+```
+
+Angka target AKG adalah default edukatif yang dapat diedit; tinjau dengan tenaga kesehatan sebelum dipakai sebagai acuan klinis.
 
 ---
 
