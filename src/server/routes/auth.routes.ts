@@ -23,8 +23,11 @@ const registerSchema = z.object({
   childName: z.string().min(1, "Nama anak harus diisi").max(40).optional(),
 });
 
+// The mobile login field is labelled "Email / No. HP", so accept either.
 const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email("Format email tidak valid"),
+  email: z.string().trim().optional(),
+  identifier: z.string().trim().optional(),
+  phone: z.string().trim().optional(),
   password: z.string().min(1, "Kata sandi wajib diisi"),
 });
 
@@ -133,45 +136,84 @@ authRoutes.post("/login", async (c) => {
       );
     }
 
-    let { email, password } = parsed.data;
+    const { password } = parsed.data;
+    const rawIdentifier =
+      parsed.data.email || parsed.data.identifier || parsed.data.phone || "";
 
-    // Normalize common domain typos and demo aliases
-    email = email
-      .replace(/@si-cehat\.id$/, "@sicehat.id")
-      .replace(/@sicehat\.com$/, "@sicehat.id")
-      .replace(/@si-cehat\.com$/, "@sicehat.id");
-
-    if (email === "posyandu@sicehat.id") {
-      email = "posyandu.melati@sicehat.id";
+    if (!rawIdentifier) {
+      return c.json(
+        { error: { message: "Email atau nomor HP wajib diisi." } },
+        400
+      );
     }
 
-    const [guardian] = await drizzleDb
+    let identifier = rawIdentifier;
+    if (identifier.includes("@")) {
+      // Normalize common domain typos and demo aliases
+      identifier = identifier
+        .toLowerCase()
+        .replace(/@si-cehat\.id$/, "@sicehat.id")
+        .replace(/@sicehat\.com$/, "@sicehat.id")
+        .replace(/@si-cehat\.com$/, "@sicehat.id");
+
+      if (identifier === "posyandu@sicehat.id") {
+        identifier = "posyandu.melati@sicehat.id";
+      }
+    } else {
+      identifier = identifier.replace(/[\s-]/g, "");
+    }
+
+    // Build phone variants so 0812..., 62812..., and +62812... all match.
+    const phoneCandidates = new Set<string>([identifier]);
+    if (!identifier.includes("@")) {
+      const digits = identifier.replace(/[^0-9]/g, "");
+      if (digits) phoneCandidates.add(digits);
+      if (digits.startsWith("62")) {
+        phoneCandidates.add(`0${digits.slice(2)}`);
+      }
+      if (digits.startsWith("0")) {
+        phoneCandidates.add(`62${digits.slice(1)}`);
+      }
+    }
+
+    const lookupConditions = [
+      eq(sql`lower(${guardians.email})`, identifier),
+      ...Array.from(phoneCandidates).map((phone) =>
+        eq(guardians.phone, phone)
+      ),
+    ];
+
+    // A phone number is not guaranteed to be unique (and older seed data may
+    // share one), so verify the password against the candidates instead of
+    // trusting the first row.
+    const candidates = await drizzleDb
       .select()
       .from(guardians)
-      .where(
-        or(
-          eq(sql`lower(${guardians.email})`, email),
-          eq(guardians.phone, email)
-        )
-      )
-      .limit(1);
+      .where(or(...lookupConditions))
+      .limit(5);
 
-    if (!guardian) {
-      console.warn(`[AUTH] Login failed: User not found for email "${email}"`);
+    if (candidates.length === 0) {
+      console.warn(`[AUTH] Login failed: User not found for identifier "${identifier}"`);
       return c.json(
         { error: { message: "Email atau kata sandi tidak cocok." } },
         401
       );
     }
 
-    let valid = await verifyPassword(password, guardian.passwordHash);
-    if (!valid && password.trim() !== password) {
-      valid = await verifyPassword(password.trim(), guardian.passwordHash);
+    let guardian = null as (typeof candidates)[number] | null;
+    for (const candidate of candidates) {
+      let valid = await verifyPassword(password, candidate.passwordHash);
+      if (!valid && password.trim() !== password) {
+        valid = await verifyPassword(password.trim(), candidate.passwordHash);
+      }
+      if (valid) {
+        guardian = candidate;
+        break;
+      }
     }
 
     // Convenience for seed / demo accounts
-    if (!valid) {
-      const cleanInput = password.trim();
+    if (!guardian) {
       const allowedDemoPasswords = [
         "AdminSehat2026!",
         "AdminSehat2026",
@@ -185,13 +227,13 @@ authRoutes.post("/login", async (c) => {
         "123456",
         "test1234",
       ];
-      if (allowedDemoPasswords.includes(cleanInput)) {
-        valid = true;
+      if (allowedDemoPasswords.includes(password.trim())) {
+        guardian = candidates[0];
       }
     }
 
-    if (!valid) {
-      console.warn(`[AUTH] Login failed: Invalid password for email "${email}"`);
+    if (!guardian) {
+      console.warn(`[AUTH] Login failed: Invalid password for identifier "${identifier}"`);
       return c.json(
         { error: { message: "Email atau kata sandi tidak cocok." } },
         401
