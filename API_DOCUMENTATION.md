@@ -739,8 +739,8 @@ Semua endpoint memerlukan sesi login dan hanya mengembalikan/mengubah data milik
 #### Device token FCM
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `POST` | `/api/notifications/devices` | Daftarkan/refresh token FCM, body `{ "token": "...", "platform": "android" }`. |
-| `DELETE` | `/api/notifications/devices?token=...` | Hapus token saat logout. |
+| `POST` | `/api/notifications/devices` | Daftarkan/refresh Firebase Installation ID (FID), body `{ "token": "<FID>", "platform": "android" }`. |
+| `DELETE` | `/api/notifications/devices?token=...` | Hapus FID saat logout. |
 
 Tanpa kredensial Firebase (`FIREBASE_SERVICE_ACCOUNT_JSON` atau `GOOGLE_APPLICATION_CREDENTIALS`), pengiriman push dilewati dan API tetap berjalan normal.
 
