@@ -716,6 +716,32 @@ const { consultation } = await response.json();
 
 ---
 
+### 3.25. Pusat Notifikasi - `/api/notifications`
+Notifikasi dibuat otomatis saat registrasi (selamat datang), pembuatan pengingat, pengajuan konsultasi, dan penyelesaian game PlayLab.
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/notifications` | Daftar notifikasi milik guardian + `unreadCount` (maks. 100). |
+| `PATCH` | `/api/notifications/:id` | Tandai satu notifikasi, body `{ "isRead": true }`. |
+| `POST` | `/api/notifications/read-all` | Tandai semua notifikasi sebagai dibaca. |
+| `DELETE` | `/api/notifications/:id` | Hapus satu notifikasi. |
+
+Semua endpoint memerlukan sesi login dan hanya mengembalikan/mengubah data milik guardian yang sedang login.
+
+#### Implementasi: JavaScript (fetch)
+```javascript
+const response = await fetch("/api/notifications");
+const { notifications, unreadCount } = await response.json();
+
+await fetch(`/api/notifications/${notifications[0].id}`, {
+  method: "PATCH",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ isRead: true })
+});
+```
+
+---
+
 ## 4. Role: Administrator (Wajib Login Admin)
 
 > **Catatan Keamanan:** Seluruh endpoint di bawah ini memvalidasi sesi server. Jika pemanggil bukan akun dengan peran `role === "ADMIN"`, sistem mengembalikan respon `401 Unauthorized` atau `403 Forbidden`.

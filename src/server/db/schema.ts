@@ -167,6 +167,19 @@ export const reminders = pgTable("Reminder", {
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 });
 
+export const notifications = pgTable("Notification", {
+  id: text("id").primaryKey().$defaultFn(uuidDefault),
+  guardianId: text("guardianId")
+    .notNull()
+    .references(() => guardians.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  type: text("type").notNull().default("SYSTEM"),
+  referenceId: text("referenceId"),
+  isRead: boolean("isRead").notNull().default(false),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+});
+
 export const recipes = pgTable("Recipe", {
   id: text("id").primaryKey().$defaultFn(uuidDefault),
   title: text("title").notNull(),
@@ -288,6 +301,7 @@ export const guardiansRelations = relations(guardians, ({ one, many }) => ({
   reminders: many(reminders),
   screenings: many(screeningRecords),
   consultations: many(consultations),
+  notifications: many(notifications),
 }));
 
 export const childrenRelations = relations(children, ({ one, many }) => ({
@@ -363,6 +377,13 @@ export const remindersRelations = relations(reminders, ({ one }) => ({
   child: one(children, {
     fields: [reminders.childId],
     references: [children.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  guardian: one(guardians, {
+    fields: [notifications.guardianId],
+    references: [guardians.id],
   }),
 }));
 

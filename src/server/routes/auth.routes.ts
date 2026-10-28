@@ -10,6 +10,7 @@ import {
   getSession,
 } from "../middleware/auth";
 import { hashPassword, verifyPassword } from "../utils/password";
+import { createNotification } from "../services/notifications";
 
 export const authRoutes = new Hono();
 
@@ -65,6 +66,14 @@ authRoutes.post("/register", async (c) => {
         phone: phone || null,
       })
       .returning();
+
+    await createNotification({
+      guardianId: guardian.id,
+      title: "Selamat Datang di Si Cehat!",
+      message:
+        "Mulai pantau kesehatan anak Anda dan jelajahi rekomendasi gizi sehat tradisional.",
+      type: "SYSTEM",
+    });
 
     const [createdChild] = await drizzleDb
       .insert(children)

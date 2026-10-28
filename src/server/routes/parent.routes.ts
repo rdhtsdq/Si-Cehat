@@ -15,8 +15,10 @@ import {
   reminders,
   educationArticles,
   consultations,
+  notifications,
 } from "../db/schema";
 import { getSession } from "../middleware/auth";
+import { createNotification } from "../services/notifications";
 
 export const parentRoutes = new Hono();
 
@@ -2162,6 +2164,14 @@ parentRoutes.post("/reminders", async (c) => {
       })
       .returning();
 
+    await createNotification({
+      guardianId: session.user.id,
+      title: "Pengingat baru ditambahkan",
+      message: `"${reminder.title}" dijadwalkan setiap pukul ${reminder.time}.`,
+      type: "REMINDER",
+      referenceId: reminder.id,
+    });
+
     return c.json({ success: true, reminder });
   } catch (error) {
     console.error("Create reminder error:", error);
@@ -2258,7 +2268,169 @@ parentRoutes.delete("/reminders/:id", async (c) => {
   }
 });
 
-// 8. GET, POST /api/education/articles & GET /api/education/articles/:id
+// 8. GET, PATCH, DELETE /api/notifications & POST /api/notifications/read-all
+const patchNotificationSchema = z.object({
+  isRead: z.boolean().optional(),
+});
+
+parentRoutes.get("/notifications", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  try {
+    let list = await drizzleDb
+      .select()
+      .from(notifications)
+      .where(eq(notifications.guardianId, session.user.id))
+      .orderBy(desc(notifications.createdAt))
+      .limit(100);
+
+    // Accounts created before the notification center existed still get a
+    // welcome item the first time they open it.
+    if (list.length === 0) {
+      await createNotification({
+        guardianId: session.user.id,
+        title: "Selamat Datang di Si Cehat!",
+        message:
+          "Mulai pantau kesehatan anak Anda dan jelajahi rekomendasi gizi sehat tradisional.",
+        type: "SYSTEM",
+      });
+
+      list = await drizzleDb
+        .select()
+        .from(notifications)
+        .where(eq(notifications.guardianId, session.user.id))
+        .orderBy(desc(notifications.createdAt))
+        .limit(100);
+    }
+
+    return c.json({
+      notifications: list,
+      unreadCount: list.filter((item) => !item.isRead).length,
+    });
+  } catch (error) {
+    console.error("Get notifications error:", error);
+    return c.json(
+      { error: { message: "Gagal memuat pusat notifikasi." } },
+      500
+    );
+  }
+});
+
+parentRoutes.post("/notifications/read-all", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  try {
+    await drizzleDb
+      .update(notifications)
+      .set({ isRead: true })
+      .where(eq(notifications.guardianId, session.user.id));
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Mark all notifications read error:", error);
+    return c.json(
+      { error: { message: "Gagal menandai semua notifikasi." } },
+      500
+    );
+  }
+});
+
+parentRoutes.patch("/notifications/:id", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  const id = c.req.param("id");
+  const json = await c.req.json().catch(() => null);
+  const parsed = patchNotificationSchema.safeParse(json);
+
+  if (!parsed.success) {
+    return c.json(
+      {
+        error: {
+          message: parsed.error.issues[0]?.message || "Input tidak valid.",
+        },
+      },
+      400
+    );
+  }
+
+  try {
+    const [existing] = await drizzleDb
+      .select({ guardianId: notifications.guardianId })
+      .from(notifications)
+      .where(eq(notifications.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return c.json({ error: { message: "Notifikasi tidak ditemukan." } }, 404);
+    }
+
+    if (
+      session.user.role !== "ADMIN" &&
+      existing.guardianId !== session.user.id
+    ) {
+      return c.json({ error: { message: "Akses ditolak." } }, 403);
+    }
+
+    const [updated] = await drizzleDb
+      .update(notifications)
+      .set(parsed.data)
+      .where(eq(notifications.id, id))
+      .returning();
+
+    return c.json({ success: true, notification: updated });
+  } catch (error) {
+    console.error("Patch notification error:", error);
+    return c.json(
+      { error: { message: "Gagal memperbarui notifikasi." } },
+      500
+    );
+  }
+});
+
+parentRoutes.delete("/notifications/:id", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  const id = c.req.param("id");
+
+  try {
+    const [existing] = await drizzleDb
+      .select({ guardianId: notifications.guardianId })
+      .from(notifications)
+      .where(eq(notifications.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return c.json({ error: { message: "Notifikasi tidak ditemukan." } }, 404);
+    }
+
+    if (
+      session.user.role !== "ADMIN" &&
+      existing.guardianId !== session.user.id
+    ) {
+      return c.json({ error: { message: "Akses ditolak." } }, 403);
+    }
+
+    await drizzleDb.delete(notifications).where(eq(notifications.id, id));
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Delete notification error:", error);
+    return c.json({ error: { message: "Gagal menghapus notifikasi." } }, 500);
+  }
+});
+
+// 9. GET, POST /api/education/articles & GET /api/education/articles/:id
 const createArticleSchema = z.object({
   title: z.string().trim().min(3),
   slug: z.string().trim().min(3),
@@ -2542,6 +2714,14 @@ parentRoutes.post("/consultations", async (c) => {
         status: "ACTIVE",
       })
       .returning();
+
+    await createNotification({
+      guardianId: session.user.id,
+      title: "Konsultasi berhasil dibuat",
+      message: `Sesi konsultasi dengan ${consultation.specialistName} untuk topik "${consultation.topic}" sudah tercatat.`,
+      type: "CONSULTATION",
+      referenceId: consultation.id,
+    });
 
     return c.json({ consultation }, 201);
   } catch (error) {

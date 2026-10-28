@@ -13,6 +13,7 @@ import {
   dailyProgresses,
 } from "../db/schema";
 import { getSession } from "../middleware/auth";
+import { createNotification } from "../services/notifications";
 
 export const gameRoutes = new Hono();
 
@@ -452,7 +453,11 @@ gameRoutes.post(
 
         // Award XP to active child daily progress if childId present
         if (session.childId) {
-          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          // Keep the day key in UTC so it matches GET /api/progress and the
+          // other trackers (food diary, activities, growth).
+          const today = new Date(
+            `${now.toISOString().slice(0, 10)}T00:00:00.000Z`
+          );
           const [prog] = await tx
             .select()
             .from(dailyProgresses)
@@ -482,6 +487,16 @@ gameRoutes.post(
           }
         }
       });
+
+      if (session.guardianId) {
+        await createNotification({
+          guardianId: session.guardianId,
+          title: "Permainan PlayLab selesai",
+          message: `Piring Sehat Nimbo selesai dengan ${totalScore} poin dan ${starsEarned} bintang. +${xpAwarded} XP.`,
+          type: "GAME",
+          referenceId: sessionId,
+        });
+      }
 
       return c.json({
         success: true,
