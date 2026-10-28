@@ -198,16 +198,19 @@ publicRoutes.post("/avatar", async (c) => {
 });
 
 // 3. GET & POST /api/progress
+// All progress fields are optional so a partial sync (for example logging a
+// glass of water) does not reset XP, streak, or food logs that were written by
+// another feature.
 const syncProgressSchema = z.object({
   childId: z.string().uuid().optional(),
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
-  waterGlasses: z.number().int().min(0).max(30).default(0),
-  activityMinutes: z.number().int().min(0).max(600).default(0),
-  xpEarned: z.number().int().min(0).max(9999).default(0),
-  streak: z.number().int().min(0).max(365).default(0),
+  waterGlasses: z.number().int().min(0).max(30).optional(),
+  activityMinutes: z.number().int().min(0).max(600).optional(),
+  xpEarned: z.number().int().min(0).max(9999).optional(),
+  streak: z.number().int().min(0).max(365).optional(),
   foodLogs: z
     .array(
       z.object({
@@ -215,7 +218,7 @@ const syncProgressSchema = z.object({
         tone: z.enum(["balanced", "sweet", "fried", "unknown"]),
       })
     )
-    .default([]),
+    .optional(),
 });
 
 function parseTargetDate(dateStr?: string | null): Date {
@@ -425,52 +428,58 @@ publicRoutes.post("/progress", async (c) => {
       )
       .limit(1);
 
+    const updates = {
+      ...(waterGlasses !== undefined ? { waterGlasses } : {}),
+      ...(activityMinutes !== undefined ? { activityMinutes } : {}),
+      ...(xpEarned !== undefined ? { xpEarned } : {}),
+      ...(streak !== undefined ? { streak } : {}),
+    };
+
     let progressId: string;
     if (existing) {
-      const [updated] = await drizzleDb
-        .update(dailyProgresses)
-        .set({
-          waterGlasses,
-          activityMinutes,
-          xpEarned,
-          streak,
-        })
-        .where(eq(dailyProgresses.id, existing.id))
-        .returning({ id: dailyProgresses.id });
-      progressId = updated.id;
+      if (Object.keys(updates).length > 0) {
+        await drizzleDb
+          .update(dailyProgresses)
+          .set(updates)
+          .where(eq(dailyProgresses.id, existing.id));
+      }
+      progressId = existing.id;
     } else {
       const [created] = await drizzleDb
         .insert(dailyProgresses)
         .values({
           childId: targetChildId,
           date: targetDate,
-          waterGlasses,
-          activityMinutes,
-          xpEarned,
-          streak,
+          waterGlasses: waterGlasses ?? 0,
+          activityMinutes: activityMinutes ?? 0,
+          xpEarned: xpEarned ?? 0,
+          streak: streak ?? 0,
         })
         .returning({ id: dailyProgresses.id });
       progressId = created.id;
     }
 
-    await drizzleDb
-      .delete(foodLogs)
-      .where(
-        and(
-          eq(foodLogs.childId, targetChildId),
-          eq(foodLogs.date, targetDate)
-        )
-      );
+    // Only replace food logs when the caller explicitly sends them.
+    if (reqFoodLogs !== undefined) {
+      await drizzleDb
+        .delete(foodLogs)
+        .where(
+          and(
+            eq(foodLogs.childId, targetChildId),
+            eq(foodLogs.date, targetDate)
+          )
+        );
 
-    if (reqFoodLogs.length > 0) {
-      await drizzleDb.insert(foodLogs).values(
-        reqFoodLogs.map((food) => ({
-          childId: targetChildId as string,
-          date: targetDate,
-          name: food.name,
-          tone: food.tone,
-        }))
-      );
+      if (reqFoodLogs.length > 0) {
+        await drizzleDb.insert(foodLogs).values(
+          reqFoodLogs.map((food) => ({
+            childId: targetChildId as string,
+            date: targetDate,
+            name: food.name,
+            tone: food.tone,
+          }))
+        );
+      }
     }
 
     return c.json({

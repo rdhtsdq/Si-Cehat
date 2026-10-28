@@ -178,7 +178,19 @@ console.log("Total Poin:", data.progress.points);
 ---
 
 ### 2.5. POST `/api/progress` - Catat Progres Harian
-Mencatat penambahan poin setelah menyelesaikan misi sehat atau kuis edukasi.
+Menyimpan progres harian anak. Semua field bersifat **parsial**: field yang tidak dikirim tidak akan diubah.
+
+| Field | Data Type | Mandatory | Description |
+| :--- | :--- | :--- | :--- |
+| `childId` | `String (UUID)` | No | ID anak (default: anak pertama milik guardian). |
+| `date` | `String (YYYY-MM-DD)` | No | Tanggal progres (default: hari ini UTC). |
+| `waterGlasses` | `Number` | No | Jumlah gelas air (0–30). |
+| `activityMinutes` | `Number` | No | Total menit aktivitas (0–600). |
+| `xpEarned` | `Number` | No | Total XP hari itu (0–9999). |
+| `streak` | `Number` | No | Rentetan hari aktif (0–365). |
+| `foodLogs` | `Array` | No | Bila dikirim, daftar log makanan diganti dengan isi array. |
+
+> Contoh mencatat air minum tidak akan mereset `xpEarned`, `streak`, atau `foodLogs`.
 
 #### Implementasi: JavaScript (fetch)
 ```javascript
@@ -187,13 +199,9 @@ const response = await fetch("/api/progress", {
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
     childId: "c10e8400-e29b-41d4-a716-446655440001",
-    pointsEarned: 25,
-    badges: ["JUARA_AIR_PUTIH"],
-    foodLogged: {
-      mealName: "Sayur Bayam Jagung",
-      calories: 90,
-      sugarCategory: "RENDAH"
-    }
+    date: "2026-10-28",
+    waterGlasses: 3,
+    activityMinutes: 30
   })
 });
 ```
