@@ -13,8 +13,10 @@ import {
   recommendedMenus,
   recipes,
   educationArticles,
+  foodItems,
 } from "./schema";
 import { hashPassword } from "../utils/password";
+import { FOOD_SEED } from "../services/food-data";
 
 async function main() {
   console.log("Seeding CMS, Admin, Posyandu & Baseline Content (Drizzle ORM)...");
@@ -559,6 +561,45 @@ Dengarkan podcast ini sambil menemani aktivitas santai bersama keluarga!`,
     ]);
     console.log("Created default education articles.");
   }
+
+  // Nutrition catalog (idempotent by canonical name).
+  let foodInserted = 0;
+  let foodUpdated = 0;
+  for (const food of FOOD_SEED) {
+    const [existing] = await drizzleDb
+      .select({ id: foodItems.id })
+      .from(foodItems)
+      .where(eq(foodItems.name, food.name))
+      .limit(1);
+
+    const values = {
+      name: food.name,
+      aliases: food.aliases,
+      category: food.category,
+      caloriesKkal: food.caloriesKkal,
+      carbsGram: food.carbsGram,
+      proteinGram: food.proteinGram,
+      fatGram: food.fatGram,
+      sugarGram: food.sugarGram,
+      fiberGram: food.fiberGram,
+      portionDescription: food.portionDescription,
+      isActive: true,
+    };
+
+    if (existing) {
+      await drizzleDb
+        .update(foodItems)
+        .set(values)
+        .where(eq(foodItems.id, existing.id));
+      foodUpdated += 1;
+    } else {
+      await drizzleDb.insert(foodItems).values(values);
+      foodInserted += 1;
+    }
+  }
+  console.log(
+    `Nutrition catalog: ${foodInserted} inserted, ${foodUpdated} updated.`
+  );
 
   console.log("Seeding finished successfully.");
 }

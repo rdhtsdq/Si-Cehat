@@ -99,8 +99,46 @@ export const detailedFoodLogs = pgTable("DetailedFoodLog", {
   carbsGram: doublePrecision("carbsGram"),
   proteinGram: doublePrecision("proteinGram"),
   fatGram: doublePrecision("fatGram"),
+  sugarGram: doublePrecision("sugarGram"),
+  fiberGram: doublePrecision("fiberGram"),
+  foodItemId: text("foodItemId"),
   imageUrl: text("imageUrl"),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+// Nutrition catalog (values are per 100 g)
+export const foodItems = pgTable("FoodItem", {
+  id: text("id").primaryKey().$defaultFn(uuidDefault),
+  name: text("name").notNull(),
+  aliases: text("aliases"),
+  category: text("category").notNull().default("makanan_pokok"),
+  caloriesKkal: integer("caloriesKkal").notNull().default(0),
+  carbsGram: doublePrecision("carbsGram").notNull().default(0),
+  proteinGram: doublePrecision("proteinGram").notNull().default(0),
+  fatGram: doublePrecision("fatGram").notNull().default(0),
+  sugarGram: doublePrecision("sugarGram").notNull().default(0),
+  fiberGram: doublePrecision("fiberGram").notNull().default(0),
+  portionDescription: text("portionDescription").notNull().default("100 g"),
+  isActive: boolean("isActive").notNull().default(true),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+});
+
+export const nutritionTargets = pgTable("NutritionTarget", {
+  id: text("id").primaryKey().$defaultFn(uuidDefault),
+  childId: text("childId")
+    .notNull()
+    .unique()
+    .references(() => children.id, { onDelete: "cascade", onUpdate: "cascade" }),
+  caloriesKkal: integer("caloriesKkal").notNull(),
+  carbsGram: doublePrecision("carbsGram").notNull(),
+  proteinGram: doublePrecision("proteinGram").notNull(),
+  fatGram: doublePrecision("fatGram").notNull(),
+  sugarGram: doublePrecision("sugarGram").notNull(),
+  fiberGram: doublePrecision("fiberGram").notNull(),
+  source: text("source").notNull().default("AKG"),
+  updatedAt: timestamp("updatedAt", { mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
 });
 
 export const growthMeasurements = pgTable("GrowthMeasurement", {
