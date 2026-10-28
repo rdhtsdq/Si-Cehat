@@ -71,8 +71,11 @@ export async function sendPushToGuardian(
 
     if (tokens.length === 0) return;
 
+    // FCM 17 uses Firebase Installation IDs (FIDs); the Admin SDK accepts
+    // them through the FidMulticastMessage overload. The value stored in the
+    // `token` column is the FID sent by the mobile client.
     const response = await getMessaging().sendEachForMulticast({
-      tokens: tokens.map((item) => item.token),
+      fids: tokens.map((item) => item.token),
       notification: { title: input.title, body: input.body },
       data: input.data ?? {},
       android: {
@@ -87,7 +90,8 @@ export async function sendPushToGuardian(
       const code = result.error?.code;
       if (
         code === "messaging/registration-token-not-registered" ||
-        code === "messaging/invalid-registration-token"
+        code === "messaging/invalid-registration-token" ||
+        code === "messaging/installation-id-not-registered"
       ) {
         invalidTokens.push(tokens[index].token);
       }
