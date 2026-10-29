@@ -171,6 +171,35 @@ export interface AdminDashboardClientProps {
   posyanduName?: string | null;
 }
 
+export interface SpecialistItem {
+  id: string;
+  posyanduId?: string | null;
+  name: string;
+  title: string;
+  type: string;
+  typeLabel: string;
+  rating: number;
+  experienceYears: number;
+  available: boolean;
+  avatarUrl?: string | null;
+  focus: string[];
+}
+
+export interface FoodCatalogItem {
+  id: string;
+  name: string;
+  aliases?: string | null;
+  category: string;
+  caloriesKkal: number;
+  carbsGram: number;
+  proteinGram: number;
+  fatGram: number;
+  sugarGram: number;
+  fiberGram: number;
+  portionDescription: string;
+  isActive: boolean;
+}
+
 interface FamilyItem {
   id: string;
   name?: string | null;
@@ -204,23 +233,6 @@ interface FamilyItem {
       date: string;
     }>;
   }>;
-}
-
-interface ChallengeItem {
-  id: string;
-  title: string;
-  description: string;
-  xp: number;
-  isActive: boolean;
-}
-
-interface QuizItem {
-  id: string;
-  question: string;
-  options: string[];
-  answer: string;
-  xp: number;
-  isActive: boolean;
 }
 
 interface MenuItem {
@@ -271,7 +283,7 @@ export default function AdminDashboardClient({
   const isPosyandu = userRole === "POSYANDU";
 
   const [activeTab, setActiveTab] = useState<
-    "metrics" | "posyandu" | "recipes" | "education" | "consultations" | "families" | "cms" | "bot" | "export"
+    "metrics" | "posyandu" | "petugas" | "recipes" | "foods" | "education" | "consultations" | "families" | "cms" | "bot" | "export"
   >("metrics");
 
   const [data, setData] = useState<MetricsData | null>(null);
@@ -313,6 +325,50 @@ export default function AdminDashboardClient({
   const [assignFamilyModal, setAssignFamilyModal] = useState<FamilyItem | null>(null);
   const [selectedAssignPosyanduId, setSelectedAssignPosyanduId] = useState<string>("");
   const [assignSaving, setAssignSaving] = useState(false);
+
+  // Master Tenaga Medis State
+  const [specialists, setSpecialists] = useState<SpecialistItem[]>([]);
+  const [specialistsLoading, setSpecialistsLoading] = useState(false);
+  const [showSpecialistModal, setShowSpecialistModal] = useState(false);
+  const [editingSpecialistId, setEditingSpecialistId] = useState<string | null>(null);
+  const [specialistSaving, setSpecialistSaving] = useState(false);
+  const [resetPasswordModal, setResetPasswordModal] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
+  const [specialistForm, setSpecialistForm] = useState({
+    name: "",
+    title: "",
+    type: "DOKTER" as "BIDAN" | "AHLI_GIZI" | "DOKTER",
+    typeLabel: "",
+    rating: 4.8,
+    experienceYears: 0,
+    available: true,
+    avatarUrl: "",
+    focusText: "",
+    posyanduId: "",
+  });
+
+  // Master Katalog Makanan State
+  const [foods, setFoods] = useState<FoodCatalogItem[]>([]);
+  const [foodsLoading, setFoodsLoading] = useState(false);
+  const [showFoodModal, setShowFoodModal] = useState(false);
+  const [editingFoodId, setEditingFoodId] = useState<string | null>(null);
+  const [foodSaving, setFoodSaving] = useState(false);
+  const [foodSearchQuery, setFoodSearchQuery] = useState("");
+  const [foodForm, setFoodForm] = useState({
+    name: "",
+    aliases: "",
+    category: "makanan_pokok",
+    caloriesKkal: 100,
+    carbsGram: 15,
+    proteinGram: 5,
+    fatGram: 3,
+    sugarGram: 2,
+    fiberGram: 2,
+    portionDescription: "100 g",
+    isActive: true,
+  });
 
   // Recipes State
   const [recipes, setRecipes] = useState<RecipeItem[]>([]);
@@ -369,14 +425,8 @@ export default function AdminDashboardClient({
   const [familySearchQuery, setFamilySearchQuery] = useState("");
 
   // Gamification CMS States
-  const [challenges, setChallenges] = useState<ChallengeItem[]>([]);
-  const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
   const [menus, setMenus] = useState<MenuItem[]>([]);
-  const [showAddChallenge, setShowAddChallenge] = useState(false);
-  const [showAddQuiz, setShowAddQuiz] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const [newChallenge, setNewChallenge] = useState({ title: "", description: "", xp: 30 });
-  const [newQuiz, setNewQuiz] = useState({ question: "", options: "Air putih, Soda, Boba", answer: "Air putih", xp: 20 });
   const [newMenu, setNewMenu] = useState({ title: "", note: "" });
 
   // Bot Config States
@@ -445,6 +495,31 @@ export default function AdminDashboardClient({
       })
       .catch((err) => console.error("Gagal memuat master posyandu", err))
       .finally(() => setPosyandusLoading(false));
+  }
+
+  function fetchSpecialists() {
+    setSpecialistsLoading(true);
+    fetch("/api/admin/specialists")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.specialists) setSpecialists(json.specialists);
+      })
+      .catch((err) => console.error("Gagal memuat master tenaga medis", err))
+      .finally(() => setSpecialistsLoading(false));
+  }
+
+  function fetchFoods(search?: string) {
+    setFoodsLoading(true);
+    const qs = search && search.trim()
+      ? `?search=${encodeURIComponent(search.trim())}`
+      : "";
+    fetch(`/api/admin/foods${qs}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.foods) setFoods(json.foods);
+      })
+      .catch((err) => console.error("Gagal memuat katalog makanan", err))
+      .finally(() => setFoodsLoading(false));
   }
 
   function fetchMetrics(pId?: string) {
@@ -636,6 +711,249 @@ export default function AdminDashboardClient({
     }
   }
 
+  // Master Tenaga Medis Handlers
+  function openAddSpecialist() {
+    setEditingSpecialistId(null);
+    setSpecialistForm({
+      name: "",
+      title: "",
+      type: "DOKTER",
+      typeLabel: "",
+      rating: 4.8,
+      experienceYears: 0,
+      available: true,
+      avatarUrl: "",
+      focusText: "",
+      posyanduId: isPosyandu ? posyanduId || "" : "",
+    });
+    setShowSpecialistModal(true);
+  }
+
+  function openEditSpecialist(s: SpecialistItem) {
+    setEditingSpecialistId(s.id);
+    setSpecialistForm({
+      name: s.name,
+      title: s.title,
+      type:
+        s.type === "BIDAN" || s.type === "AHLI_GIZI" || s.type === "DOKTER"
+          ? s.type
+          : "DOKTER",
+      typeLabel: s.typeLabel,
+      rating: s.rating ?? 4.8,
+      experienceYears: s.experienceYears ?? 0,
+      available: s.available ?? true,
+      avatarUrl: s.avatarUrl || "",
+      focusText: (s.focus || []).join(", "),
+      posyanduId: s.posyanduId || "",
+    });
+    setShowSpecialistModal(true);
+  }
+
+  async function handleSaveSpecialist(e: React.FormEvent) {
+    e.preventDefault();
+    if (!specialistForm.name.trim() || !specialistForm.title.trim()) {
+      alert("Nama dan jabatan tenaga medis wajib diisi.");
+      return;
+    }
+
+    setSpecialistSaving(true);
+    try {
+      const payload = {
+        name: specialistForm.name.trim(),
+        title: specialistForm.title.trim(),
+        type: specialistForm.type,
+        typeLabel:
+          specialistForm.typeLabel.trim() || specialistForm.title.trim(),
+        rating: Number(specialistForm.rating),
+        experienceYears: Number(specialistForm.experienceYears),
+        available: specialistForm.available,
+        avatarUrl: specialistForm.avatarUrl.trim() || undefined,
+        focus: specialistForm.focusText
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+        posyanduId: isPosyandu
+          ? posyanduId || null
+          : specialistForm.posyanduId || null,
+      };
+
+      const url = editingSpecialistId
+        ? `/api/admin/specialists/${editingSpecialistId}`
+        : "/api/admin/specialists";
+      const method = editingSpecialistId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(
+          json.error?.message || "Gagal menyimpan tenaga medis."
+        );
+      }
+
+      setShowSpecialistModal(false);
+      setEditingSpecialistId(null);
+      fetchSpecialists();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Terjadi kesalahan.");
+    } finally {
+      setSpecialistSaving(false);
+    }
+  }
+
+  async function handleDeleteSpecialist(id: string, name: string) {
+    if (!confirm(`Hapus tenaga medis "${name}" dari master?`)) return;
+    const res = await fetch(`/api/admin/specialists/${id}`, {
+      method: "DELETE",
+    });
+    if (res.ok) {
+      fetchSpecialists();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(
+        "Gagal menghapus tenaga medis: " +
+          (err.error?.message || "Terjadi kesalahan.")
+      );
+    }
+  }
+
+  async function handleResetPosyanduAdminPassword(
+    posyanduId: string,
+    adminId: string,
+    email: string
+  ) {
+    if (
+      !confirm(
+        `Reset password untuk akun "${email}"? Password baru akan ditampilkan setelah proses selesai.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `/api/admin/posyandus/${posyanduId}/admins/${adminId}/reset-password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error?.message || "Gagal reset password.");
+      }
+      setResetPasswordModal({
+        email: json.email || email,
+        password: json.password,
+      });
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Terjadi kesalahan.");
+    }
+  }
+
+  // Master Katalog Makanan Handlers
+  function openAddFood() {
+    setEditingFoodId(null);
+    setFoodForm({
+      name: "",
+      aliases: "",
+      category: "makanan_pokok",
+      caloriesKkal: 100,
+      carbsGram: 15,
+      proteinGram: 5,
+      fatGram: 3,
+      sugarGram: 2,
+      fiberGram: 2,
+      portionDescription: "100 g",
+      isActive: true,
+    });
+    setShowFoodModal(true);
+  }
+
+  function openEditFood(food: FoodCatalogItem) {
+    setEditingFoodId(food.id);
+    setFoodForm({
+      name: food.name,
+      aliases: food.aliases || "",
+      category: food.category,
+      caloriesKkal: food.caloriesKkal,
+      carbsGram: food.carbsGram,
+      proteinGram: food.proteinGram,
+      fatGram: food.fatGram,
+      sugarGram: food.sugarGram,
+      fiberGram: food.fiberGram,
+      portionDescription: food.portionDescription || "100 g",
+      isActive: food.isActive,
+    });
+    setShowFoodModal(true);
+  }
+
+  async function handleSaveFood(e: React.FormEvent) {
+    e.preventDefault();
+    if (!foodForm.name.trim()) {
+      alert("Nama makanan wajib diisi.");
+      return;
+    }
+
+    setFoodSaving(true);
+    try {
+      const payload = {
+        name: foodForm.name.trim(),
+        aliases: foodForm.aliases.trim() || undefined,
+        category: foodForm.category,
+        caloriesKkal: Number(foodForm.caloriesKkal),
+        carbsGram: Number(foodForm.carbsGram),
+        proteinGram: Number(foodForm.proteinGram),
+        fatGram: Number(foodForm.fatGram),
+        sugarGram: Number(foodForm.sugarGram),
+        fiberGram: Number(foodForm.fiberGram),
+        portionDescription: foodForm.portionDescription.trim() || "100 g",
+        isActive: foodForm.isActive,
+      };
+
+      const url = editingFoodId
+        ? `/api/admin/foods/${editingFoodId}`
+        : "/api/admin/foods";
+      const method = editingFoodId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error?.message || "Gagal menyimpan makanan.");
+      }
+
+      setShowFoodModal(false);
+      setEditingFoodId(null);
+      fetchFoods(foodSearchQuery);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Terjadi kesalahan.");
+    } finally {
+      setFoodSaving(false);
+    }
+  }
+
+  async function handleDeleteFood(id: string, name: string) {
+    if (!confirm(`Hapus "${name}" dari katalog makanan?`)) return;
+    const res = await fetch(`/api/admin/foods/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      fetchFoods(foodSearchQuery);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(
+        "Gagal menghapus makanan: " +
+          (err.error?.message || "Terjadi kesalahan.")
+      );
+    }
+  }
+
   async function handleAssignFamilyPosyandu(e: React.FormEvent) {
     e.preventDefault();
     if (!assignFamilyModal) return;
@@ -667,8 +985,6 @@ export default function AdminDashboardClient({
     fetch("/api/admin/content")
       .then((res) => res.json())
       .then((json) => {
-        if (json.challenges) setChallenges(json.challenges);
-        if (json.quizzes) setQuizzes(json.quizzes);
         if (json.menus) setMenus(json.menus);
       })
       .catch((err) => console.error("Gagal memuat konten CMS", err));
@@ -962,15 +1278,6 @@ export default function AdminDashboardClient({
   }
 
   // Gamification Handlers
-  async function handleToggle(entity: "challenge" | "quiz", id: string, isActive: boolean) {
-    await fetch("/api/admin/content", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "toggle", entity, id, isActive }),
-    });
-    fetchCmsContent();
-  }
-
   async function handleDelete(type: "challenge" | "quiz" | "menu", id: string) {
     if (!confirm("Hapus item ini dari sistem?")) return;
     await fetch("/api/admin/content", {
@@ -978,46 +1285,6 @@ export default function AdminDashboardClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, id }),
     });
-    fetchCmsContent();
-  }
-
-  async function handleAddChallenge(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newChallenge.title || !newChallenge.description) return;
-    await fetch("/api/admin/content", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "challenge",
-        title: newChallenge.title,
-        description: newChallenge.description,
-        xp: Number(newChallenge.xp),
-        isActive: false,
-      }),
-    });
-    setNewChallenge({ title: "", description: "", xp: 30 });
-    setShowAddChallenge(false);
-    fetchCmsContent();
-  }
-
-  async function handleAddQuiz(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newQuiz.question || !newQuiz.answer) return;
-    const optionsArray = newQuiz.options.split(",").map((o) => o.trim()).filter(Boolean);
-    await fetch("/api/admin/content", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "quiz",
-        question: newQuiz.question,
-        options: optionsArray,
-        answer: newQuiz.answer.trim(),
-        xp: Number(newQuiz.xp),
-        isActive: false,
-      }),
-    });
-    setNewQuiz({ question: "", options: "Air putih, Soda, Boba", answer: "Air putih", xp: 20 });
-    setShowAddQuiz(false);
     fetchCmsContent();
   }
 
@@ -1063,17 +1330,17 @@ export default function AdminDashboardClient({
 
   return (
     <div
-      className="min-h-screen bg-slate-50 text-slate-900 antialiased overflow-x-hidden selection:bg-emerald-100 selection:text-emerald-900"
-      style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", "Helvetica Neue", Arial, sans-serif' }}
+      className="min-h-screen bg-[#f7faf8] text-slate-900 antialiased overflow-x-clip selection:bg-emerald-100 selection:text-emerald-900"
+      style={{ fontFamily: "'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" }}
     >
       {/* Top Header */}
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-xs overflow-x-clip [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur-md shadow-sm overflow-x-clip [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        <div className="w-full px-3 sm:px-4">
           <div className="flex h-16 items-center justify-between gap-4">
             {/* Brand Logo & Title */}
             <div className="flex items-center space-x-3">
               <Link href="/" className="flex items-center gap-2.5 group">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0F5132] to-[#146C43] text-white shadow-xs group-hover:scale-102 transition-transform">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#047857] to-[#059669] text-white shadow-sm group-hover:scale-102 transition-transform">
                   <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 2v20M2 12h20" />
                   </svg>
@@ -1112,7 +1379,7 @@ export default function AdminDashboardClient({
                   <select
                     value={selectedPosyanduFilter}
                     onChange={(e) => handleFilterPosyanduChange(e.target.value)}
-                    className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-[#0F5132] shadow-xs hover:border-[#0F5132] focus:border-[#0F5132] focus:outline-hidden"
+                    className="rounded-xl border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-[#047857] shadow-sm hover:border-[#047857] focus:border-[#047857] focus:outline-hidden"
                   >
                     <option value="ALL">Semua Posyandu (Pusat)</option>
                     {posyandus.map((p) => (
@@ -1126,27 +1393,21 @@ export default function AdminDashboardClient({
 
               {/* Posyandu indicator badge */}
               {isPosyandu && (
-                <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 mr-1">
+                <div className="hidden sm:flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 mr-1">
                   <span>{posyanduName || "Posyandu Wilayah"}</span>
                 </div>
               )}
-
-              <Link
-                href="/api-docs"
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-xs transition"
-              >
-                <span>Dokumentasi API</span>
-                <svg className="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" />
-                </svg>
-              </Link>
 
               <button
                 type="button"
                 onClick={() => {
                   fetchMetrics();
-                  if (activeTab === "posyandu" && isSuperAdmin) fetchPosyandus();
+                  if (activeTab === "posyandu" && isSuperAdmin) {
+                    fetchPosyandus();
+                    fetchSpecialists();
+                  }
                   if (activeTab === "recipes") fetchRecipes();
+                  if (activeTab === "foods") fetchFoods(foodSearchQuery);
                   if (activeTab === "education") fetchArticles();
                   if (activeTab === "consultations") fetchConsultations();
                   if (activeTab === "families") fetchFamilies();
@@ -1154,7 +1415,7 @@ export default function AdminDashboardClient({
                   if (activeTab === "bot") fetchBotConfig();
                 }}
                 disabled={loading}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-xs transition disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-sm transition disabled:opacity-50"
               >
                 <svg className={`w-3.5 h-3.5 text-slate-500 ${loading ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
@@ -1165,9 +1426,9 @@ export default function AdminDashboardClient({
               <div className="h-6 w-px bg-slate-200 hidden sm:block" />
 
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-1 text-xs">
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-2.5 py-1 text-xs">
                   <div className={`h-6 w-6 rounded-full text-white flex items-center justify-center font-bold text-[10px] ${
-                    isPosyandu ? "bg-emerald-700" : "bg-[#0F5132]"
+                    isPosyandu ? "bg-emerald-700" : "bg-[#047857]"
                   }`}>
                     {(userEmail?.[0] || "A").toUpperCase()}
                   </div>
@@ -1185,7 +1446,7 @@ export default function AdminDashboardClient({
                   type="button"
                   onClick={handleLogout}
                   title="Keluar dari sesi"
-                  className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 shadow-xs transition"
+                  className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 shadow-sm transition"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
@@ -1195,153 +1456,203 @@ export default function AdminDashboardClient({
             </div>
           </div>
 
-          {/* Sub Navigation Tabs */}
-          <nav className="flex items-center flex-wrap gap-1.5 py-2 border-t border-slate-100 text-xs font-medium overflow-x-clip [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            <button
-              type="button"
-              onClick={() => setActiveTab("metrics")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === "metrics"
-                  ? "bg-[#0F5132] text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <path d="M3 9h18M9 21V9" />
-              </svg>
-              <span>Surveilans</span>
-            </button>
-
-            {/* Master Posyandu Tab: ONLY for Super Admin */}
-            {isSuperAdmin && (
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab("posyandu");
-                  fetchPosyandus();
-                }}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                  activeTab === "posyandu"
-                    ? "bg-[#0F5132] text-white shadow-xs"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                }`}
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 21h18M3 7v14M21 7v14M6 3h12a2 2 0 0 1 2 2v2H4V5a2 2 0 0 1 2-2zM9 10h2v3H9zm4 0h2v3h-2zm-4 6h2v3H9zm4 0h2v3h-2z" />
-                </svg>
-                <span>Master Posyandu</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                  {posyandus.length}
-                </span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("recipes")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === "recipes"
-                  ? "bg-[#0F5132] text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3" />
-              </svg>
-              <span>Resep Sehat</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("education")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === "education"
-                  ? "bg-[#0F5132] text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15z" />
-              </svg>
-              <span>Pustaka Edukasi</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("consultations")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === "consultations"
-                  ? "bg-[#0F5132] text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-              </svg>
-              <span>Telekonsultasi</span>
-              {(data?.metrics.consultations.pending || 0) > 0 && (
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    activeTab === "consultations" ? "bg-rose-400 text-white" : "bg-rose-600 text-white"
-                  }`}
-                >
-                  {data?.metrics.consultations.pending}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("families")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === "families"
-                  ? "bg-[#0F5132] text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
-              <span>Direktori Keluarga</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("cms")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === "cms"
-                  ? "bg-[#0F5132] text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="8" r="7" />
-                <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
-              </svg>
-              <span>Misi & Kuis</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("export")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                activeTab === "export"
-                  ? "bg-[#0F5132] text-white shadow-xs"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-              </svg>
-              <span>Ekspor Data</span>
-            </button>
-          </nav>
         </div>
       </header>
 
       {/* Main Content Workspace */}
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      <div className="flex w-full flex-col lg:flex-row">
+        <aside className="w-full shrink-0 border-b border-slate-200 bg-white lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] lg:w-52 lg:self-start lg:overflow-y-auto lg:border-b-0 lg:border-r">
+          <p className="hidden px-4 pb-1 pt-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 lg:block">Menu</p>
+            <nav className="flex gap-1.5 overflow-x-auto p-2.5 text-xs font-semibold [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden lg:flex-col lg:gap-1 lg:overflow-visible lg:p-3">
+              <button
+                type="button"
+                onClick={() => setActiveTab("metrics")}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition lg:w-full lg:px-3.5 lg:text-sm ${
+                  activeTab === "metrics"
+                    ? "bg-[#047857] text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <path d="M3 9h18M9 21V9" />
+                </svg>
+                <span>Surveilans</span>
+              </button>
+
+              {/* Petugas / Tenaga Medis: ONLY for Posyandu Admin */}
+              {isPosyandu && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("petugas");
+                    fetchSpecialists();
+                  }}
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition lg:w-full lg:px-3.5 lg:text-sm ${
+                    activeTab === "petugas"
+                      ? "bg-[#047857] text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                  <span>Petugas</span>
+                  {specialists.length > 0 && (
+                    <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[10px] font-bold text-emerald-800">
+                      {specialists.length}
+                    </span>
+                  )}
+                </button>
+              )}
+
+              {/* Master Posyandu Tab: ONLY for Super Admin */}
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("posyandu");
+                    fetchPosyandus();
+                    fetchSpecialists();
+                  }}
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition lg:w-full lg:px-3.5 lg:text-sm ${
+                    activeTab === "posyandu"
+                      ? "bg-[#047857] text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 21h18M3 7v14M21 7v14M6 3h12a2 2 0 0 1 2 2v2H4V5a2 2 0 0 1 2-2zM9 10h2v3H9zm4 0h2v3h-2zm-4 6h2v3H9zm4 0h2v3h-2z" />
+                  </svg>
+                  <span>Master Posyandu</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                    {posyandus.length}
+                  </span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("recipes")}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition lg:w-full lg:px-3.5 lg:text-sm ${
+                  activeTab === "recipes"
+                    ? "bg-[#047857] text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3" />
+                </svg>
+                <span>Resep Sehat</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("foods");
+                  fetchFoods();
+                }}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition lg:w-full lg:px-3.5 lg:text-sm ${
+                  activeTab === "foods"
+                    ? "bg-[#047857] text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 3v18h18" />
+                  <path d="M7 14l3-3 3 2 5-6" />
+                </svg>
+                <span>Katalog Makanan</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("education")}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition lg:w-full lg:px-3.5 lg:text-sm ${
+                  activeTab === "education"
+                    ? "bg-[#047857] text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15z" />
+                </svg>
+                <span>Pustaka Edukasi</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("consultations")}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition lg:w-full lg:px-3.5 lg:text-sm ${
+                  activeTab === "consultations"
+                    ? "bg-[#047857] text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                <span>Telekonsultasi</span>
+                {(data?.metrics.consultations.pending || 0) > 0 && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      activeTab === "consultations" ? "bg-rose-400 text-white" : "bg-rose-600 text-white"
+                    }`}
+                  >
+                    {data?.metrics.consultations.pending}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("families")}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition lg:w-full lg:px-3.5 lg:text-sm ${
+                  activeTab === "families"
+                    ? "bg-[#047857] text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                <span>Direktori Keluarga</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("cms")}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition lg:w-full lg:px-3.5 lg:text-sm ${
+                  activeTab === "cms"
+                    ? "bg-[#047857] text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="8" r="7" />
+                  <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
+                </svg>
+                <span>Rekomendasi Menu</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab("export")}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition lg:w-full lg:px-3.5 lg:text-sm ${
+                  activeTab === "export"
+                    ? "bg-[#047857] text-white shadow-sm"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                </svg>
+                <span>Ekspor Data</span>
+              </button>
+            </nav>
+        </aside>
+
+        <main className="min-w-0 flex-1 px-3 py-5 sm:px-4">
         {/* ========================================================= */}
         {/* TAB 1: SURVEILANS KLINIS & EARLY WARNING                  */}
         {/* ========================================================= */}
@@ -1350,10 +1661,10 @@ export default function AdminDashboardClient({
             {/* Top Stat Cards Grid */}
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
               {/* Card 1: Partisipan */}
-              <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs hover:border-slate-300 transition">
+              <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm hover:border-slate-300 transition">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-500">Total Partisipan</span>
-                  <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <div className="h-8 w-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
                     </svg>
@@ -1369,10 +1680,10 @@ export default function AdminDashboardClient({
               </div>
 
               {/* Card 2: Skrining Risiko Tinggi */}
-              <div className="rounded-xl border border-rose-200/90 bg-rose-50/20 p-4 shadow-xs hover:border-rose-300 transition">
+              <div className="rounded-xl border border-rose-200/90 bg-rose-50/20 p-4 shadow-sm hover:border-rose-300 transition">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-rose-800">Skrining Risiko Tinggi</span>
-                  <div className="h-8 w-8 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center">
+                  <div className="h-8 w-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center">
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />
                     </svg>
@@ -1392,10 +1703,10 @@ export default function AdminDashboardClient({
               </div>
 
               {/* Card 3: Kurva Gizi Normal */}
-              <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs hover:border-slate-300 transition">
+              <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm hover:border-slate-300 transition">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-500">Status Gizi Normal (WHO)</span>
-                  <div className="h-8 w-8 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center">
+                  <div className="h-8 w-8 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center">
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                     </svg>
@@ -1413,10 +1724,10 @@ export default function AdminDashboardClient({
               </div>
 
               {/* Card 4: Rerata Kalori */}
-              <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs hover:border-slate-300 transition">
+              <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm hover:border-slate-300 transition">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-500">Rerata Kalori Makanan</span>
-                  <div className="h-8 w-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+                  <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8zM6 1v3M10 1v3M14 1v3" />
                     </svg>
@@ -1434,10 +1745,10 @@ export default function AdminDashboardClient({
               </div>
 
               {/* Card 5: Konsultasi Medis */}
-              <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-xs hover:border-slate-300 transition">
+              <div className="rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm hover:border-slate-300 transition">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-slate-500">Konsultasi Medis Masuk</span>
-                  <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                  <div className="h-8 w-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                     </svg>
@@ -1456,10 +1767,10 @@ export default function AdminDashboardClient({
             </div>
 
             {/* Early Warning Alert Table */}
-            <div className="rounded-xl border border-rose-200 bg-white overflow-hidden shadow-xs">
+            <div className="rounded-xl border border-rose-200 bg-white overflow-hidden shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-rose-100 bg-rose-50/40 p-5 gap-3">
                 <div className="flex items-start gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <div className="h-9 w-9 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0 mt-0.5">
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />
                     </svg>
@@ -1530,7 +1841,7 @@ export default function AdminDashboardClient({
                                 href={`https://wa.me/${alert.guardianPhone.replace(/[^0-9]/g, "")}?text=Halo%20Ibu%20${encodeURIComponent(alert.guardianName)},%20kami%20dari%20tim%20kesehatan%20Si-Cehat...`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 shadow-xs transition"
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 shadow-sm transition"
                               >
                                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                                   <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2zM12 20.35c-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.3 8.3 0 0 1-1.27-4.49c0-4.6 3.74-8.34 8.34-8.34 2.23 0 4.32.87 5.9 2.44a8.27 8.27 0 0 1 2.45 5.9c0 4.6-3.74 8.35-8.35 8.35zm4.57-6.24c-.25-.13-1.48-.73-1.71-.81-.23-.09-.4-.13-.57.13-.17.25-.66.81-.81.98-.15.17-.3.19-.55.06-.25-.13-1.06-.39-2.02-1.25-.75-.67-1.26-1.5-1.4-1.75-.15-.25-.02-.39.11-.51.11-.11.25-.3.38-.44.12-.15.17-.25.25-.42.08-.17.04-.32-.02-.45s-.57-1.37-.78-1.88c-.2-.49-.41-.43-.57-.44h-.49c-.17 0-.45.06-.69.32-.23.25-.9.88-.9 2.15 0 1.26.92 2.49 1.05 2.66.13.17 1.81 2.77 4.39 3.88.61.27 1.09.43 1.46.55.62.2 1.18.17 1.63.1.5-.07 1.48-.61 1.69-1.2.21-.58.21-1.08.15-1.2-.06-.11-.23-.17-.48-.3z" />
@@ -1556,7 +1867,7 @@ export default function AdminDashboardClient({
             {/* Split Section: WHO Growth Distribution and Food Choices */}
             <div className="grid gap-6 lg:grid-cols-2">
               {/* WHO Growth Curve Distribution */}
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h2 className="text-sm font-bold text-slate-900">Status Gizi Populasi Anak (WHO)</h2>
                   <span className="text-xs font-medium text-slate-500">
@@ -1592,7 +1903,7 @@ export default function AdminDashboardClient({
               </div>
 
               {/* Diet Breakdown Card */}
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h2 className="text-sm font-bold text-slate-900">Distribusi Pilihan Makanan Anak</h2>
                   <span className="text-xs font-medium text-slate-500">{foodTotal} entri</span>
@@ -1657,7 +1968,7 @@ export default function AdminDashboardClient({
             </div>
 
             {/* Recent Progress Log Table */}
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-xs">
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-3">
                 Riwayat Aktivitas & Konsumsi Air Terkini
               </h2>
@@ -1709,9 +2020,9 @@ export default function AdminDashboardClient({
         {activeTab === "posyandu" && isSuperAdmin && (
           <div className="space-y-6">
             {/* Header Posyandu */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E2E8F0] pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#f1f5f9] pb-4">
               <div>
-                <h1 className="text-xl font-black text-[#0F5132]">Master Data Posyandu & Wilayah Kerja</h1>
+                <h1 className="text-xl font-black text-[#047857]">Master Data Posyandu & Wilayah Kerja</h1>
                 <p className="text-xs text-[#64748B] mt-0.5">
                   Multi-tenancy master: kelola entitas Posyandu, batas RW/RT, penanggung jawab, dan akun kredensial login Admin Posyandu.
                 </p>
@@ -1737,7 +2048,7 @@ export default function AdminDashboardClient({
                   });
                   setShowPosyanduModal(true);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#0F5132] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#146C43] shadow-xs transition"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#047857] px-3.5 py-2 text-xs font-bold text-white hover:bg-[#059669] shadow-sm transition"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19" />
@@ -1749,13 +2060,13 @@ export default function AdminDashboardClient({
 
             {/* Summary Metrics Cards */}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <span className="text-xs font-semibold text-slate-500">Total Unit Posyandu</span>
                 <p className="mt-1 text-2xl font-black text-slate-900">{posyandus.length}</p>
                 <p className="text-[11px] text-emerald-700 font-medium mt-0.5">Unit terdaftar aktif</p>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <span className="text-xs font-semibold text-slate-500">Keluarga Binaan</span>
                 <p className="mt-1 text-2xl font-black text-slate-900">
                   {posyandus.reduce((sum, p) => sum + (p.totalGuardians || 0), 0)}
@@ -1763,7 +2074,7 @@ export default function AdminDashboardClient({
                 <p className="text-[11px] text-slate-500 mt-0.5">Ibu / Kepala Keluarga</p>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <span className="text-xs font-semibold text-slate-500">Anak Terpantau</span>
                 <p className="mt-1 text-2xl font-black text-slate-900">
                   {posyandus.reduce((sum, p) => sum + (p.totalChildren || 0), 0)}
@@ -1771,7 +2082,7 @@ export default function AdminDashboardClient({
                 <p className="text-[11px] text-slate-500 mt-0.5">Dalam sistem surveilans</p>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <span className="text-xs font-semibold text-slate-500">Akun Admin Posyandu</span>
                 <p className="mt-1 text-2xl font-black text-slate-900">
                   {posyandus.reduce((sum, p) => sum + (p.admins?.length || 0), 0)}
@@ -1781,7 +2092,7 @@ export default function AdminDashboardClient({
             </div>
 
             {/* Posyandu List Table */}
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xs">
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="border-b border-slate-100 bg-slate-50/60 px-4 py-3 flex items-center justify-between">
                 <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Daftar Posyandu & Akun Petugas ({posyandus.length})
@@ -1793,7 +2104,7 @@ export default function AdminDashboardClient({
 
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
-                  <thead className="bg-[#F8F9FA] text-[#495057] font-bold border-b border-[#E2E8F0]">
+                  <thead className="bg-[#f8fafc] text-[#495057] font-bold border-b border-[#f1f5f9]">
                     <tr>
                       <th className="py-3 px-4">Nama Posyandu & Kode</th>
                       <th className="py-3 px-4">Wilayah Cakupan</th>
@@ -1805,7 +2116,7 @@ export default function AdminDashboardClient({
                   </thead>
                   <tbody className="divide-y divide-[#F1F5F9]">
                     {posyandus.map((p) => (
-                      <tr key={p.id} className="hover:bg-[#F8F9FA]/80 transition">
+                      <tr key={p.id} className="hover:bg-[#f8fafc]/80 transition">
                         <td className="py-3 px-4">
                           <p className="font-bold text-[#0F172A] text-sm">{p.name}</p>
                           <span className="inline-block mt-0.5 font-mono text-[10px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
@@ -1840,9 +2151,23 @@ export default function AdminDashboardClient({
                               p.admins.map((adm) => (
                                 <div
                                   key={adm.id}
-                                  className="inline-flex items-center gap-1 rounded bg-blue-50 border border-blue-200 px-2 py-0.5 text-[11px] text-blue-900 font-mono mr-1 mb-1"
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 border border-blue-200 px-2 py-1 text-[11px] text-blue-900 font-mono mr-1 mb-1"
                                 >
                                   <span>{adm.email}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleResetPosyanduAdminPassword(
+                                        p.id,
+                                        adm.id,
+                                        adm.email
+                                      )
+                                    }
+                                    className="rounded border border-blue-300 bg-white px-1.5 py-0.5 font-sans text-[10px] font-bold text-blue-700 transition hover:bg-blue-100"
+                                    title="Reset password akun ini"
+                                  >
+                                    Reset
+                                  </button>
                                 </div>
                               ))
                             ) : (
@@ -1872,14 +2197,14 @@ export default function AdminDashboardClient({
                             <button
                               type="button"
                               onClick={() => openEditPosyandu(p)}
-                              className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 shadow-xs"
+                              className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 shadow-sm"
                             >
                               Edit
                             </button>
                             <button
                               type="button"
                               onClick={() => handleDeletePosyandu(p.id, p.name)}
-                              className="rounded border border-rose-200 bg-white px-2 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-50 shadow-xs"
+                              className="rounded border border-rose-200 bg-white px-2 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-50 shadow-sm"
                             >
                               Hapus
                             </button>
@@ -1898,6 +2223,214 @@ export default function AdminDashboardClient({
                 )}
               </div>
             </div>
+
+            {/* Master Tenaga Medis */}
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Master Tenaga Medis ({specialists.length})
+                  </h3>
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    Daftar bidan, ahli gizi, dan dokter yang tampil pada fitur Telekonsultasi.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={openAddSpecialist}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#047857] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#059669]"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  <span>Tambah Tenaga Medis</span>
+                </button>
+              </div>
+
+              {specialistsLoading ? (
+                <div className="py-8 text-center text-xs text-slate-500">
+                  Memuat data tenaga medis...
+                </div>
+              ) : specialists.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-500">
+                  <p className="font-semibold text-slate-700">Belum ada tenaga medis terdaftar.</p>
+                  <p className="mt-1">Klik &quot;Tambah Tenaga Medis&quot; untuk menambahkan data.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b border-[#f1f5f9] bg-[#f8fafc] font-bold text-[#495057]">
+                      <tr>
+                        <th className="px-4 py-3">Nama & Gelar</th>
+                        <th className="px-4 py-3">Tipe</th>
+                        <th className="px-4 py-3">Posyandu</th>
+                        <th className="px-4 py-3">Pengalaman</th>
+                        <th className="px-4 py-3">Rating</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F1F5F9]">
+                      {specialists.map((s) => (
+                        <tr key={s.id} className="transition hover:bg-[#f8fafc]/80">
+                          <td className="px-4 py-3">
+                            <p className="text-sm font-bold text-slate-900">{s.name}</p>
+                            <p className="text-[11px] text-slate-500">{s.title}</p>
+                            {s.focus.length > 0 && (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {s.focus.map((focus) => (
+                                  <span
+                                    key={focus}
+                                    className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800"
+                                  >
+                                    {focus}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                              {s.typeLabel || s.type}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {s.posyanduId
+                              ? posyandus.find((p) => p.id === s.posyanduId)?.name ||
+                                "Posyandu"
+                              : "Global"}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">{s.experienceYears} tahun</td>
+                          <td className="px-4 py-3 text-slate-600">{s.rating} / 5</td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                s.available
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-slate-100 text-slate-500"
+                              }`}
+                            >
+                              {s.available ? "Tersedia" : "Nonaktif"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => openEditSpecialist(s)}
+                                className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSpecialist(s.id, s.name)}
+                                className="rounded border border-rose-200 bg-white px-2 py-1 text-[11px] font-bold text-rose-600 shadow-sm hover:bg-rose-50"
+                              >
+                                Hapus
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* TAB: PETUGAS / TENAGA MEDIS (ADMIN POSYANDU)              */}
+        {/* ========================================================= */}
+        {activeTab === "petugas" && isPosyandu && (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-3 border-b border-[#f1f5f9] pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h1 className="text-xl font-black text-[#047857]">Petugas / Tenaga Medis</h1>
+                <p className="mt-0.5 text-xs text-[#64748B]">
+                  Kelola tenaga medis yang tampil pada fitur Telekonsultasi untuk wilayah{" "}
+                  <strong className="text-emerald-700">{posyanduName || "Posyandu Anda"}</strong>.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={openAddSpecialist}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#047857] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#059669]"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>Tambah Petugas</span>
+              </button>
+            </div>
+
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              {specialistsLoading ? (
+                <div className="py-10 text-center text-xs text-slate-500">
+                  Memuat data petugas...
+                </div>
+              ) : specialists.length === 0 ? (
+                <div className="py-10 text-center text-xs text-slate-500">
+                  <p className="font-semibold text-slate-700">Belum ada petugas terdaftar.</p>
+                  <p className="mt-1">Klik &quot;Tambah Petugas&quot; untuk menambahkan tenaga medis wilayah Anda.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[#F1F5F9]">
+                  {specialists.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-bold text-slate-900">{s.name}</p>
+                          <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                            {s.typeLabel || s.type}
+                          </span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              s.available
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-slate-100 text-slate-500"
+                            }`}
+                          >
+                            {s.available ? "Tersedia" : "Nonaktif"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {s.title} • {s.experienceYears} tahun • Rating {s.rating}/5
+                        </p>
+                        {s.focus.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {s.focus.map((focus) => (
+                              <span
+                                key={focus}
+                                className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800"
+                              >
+                                {focus}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSpecialist(s.id, s.name)}
+                        className="self-start rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-[11px] font-bold text-rose-600 shadow-sm transition hover:bg-rose-50 sm:self-center"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1906,22 +2439,22 @@ export default function AdminDashboardClient({
         {/* ========================================================= */}
         {activeTab === "recipes" && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E2E8F0] pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#f1f5f9] pb-4">
               <div>
-                <h1 className="text-xl font-black text-[#0F5132]">Katalog Resep Tradisional Sehat Nusantara</h1>
+                <h1 className="text-xl font-black text-[#047857]">Katalog Resep Tradisional Sehat Nusantara</h1>
                 <p className="text-xs text-[#64748B] mt-0.5">
                   Kurasi resep kuliner nusantara rendah gula, tinggi serat, dan ramah pencegahan diabetes untuk keluarga.
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="flex rounded-md border border-[#CBD5E1] bg-white p-0.5 text-xs font-semibold">
+                <div className="flex rounded-lg border border-[#CBD5E1] bg-white p-0.5 text-xs font-semibold">
                   {["semua", "makanan", "minuman", "camilan"].map((cat) => (
                     <button
                       key={cat}
                       onClick={() => setRecipeCategoryFilter(cat)}
                       className={`px-3 py-1 rounded text-xs capitalize transition ${
-                        recipeCategoryFilter === cat ? "bg-[#0F5132] text-white" : "text-[#64748B] hover:text-black"
+                        recipeCategoryFilter === cat ? "bg-[#047857] text-white" : "text-[#64748B] hover:text-black"
                       }`}
                     >
                       {cat}
@@ -1948,7 +2481,7 @@ export default function AdminDashboardClient({
                     });
                     setShowRecipeModal(true);
                   }}
-                  className="rounded-md bg-[#0F5132] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#146C43] shadow-xs flex items-center gap-1.5"
+                  className="rounded-lg bg-[#047857] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#059669] shadow-sm flex items-center gap-1.5"
                 >
                   <span>+ Tambah Resep</span>
                 </button>
@@ -1958,13 +2491,13 @@ export default function AdminDashboardClient({
             {/* Recipes Grid */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filteredRecipes.map((r) => (
-                <div key={r.id} className="rounded-lg border border-[#E2E8F0] bg-white p-4 shadow-xs flex flex-col justify-between">
+                <div key={r.id} className="rounded-xl border border-[#f1f5f9] bg-white p-4 shadow-sm flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between">
                       <span className="rounded bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800 uppercase tracking-wider">
                         {r.category}
                       </span>
-                      <span className="font-mono text-xs font-bold text-[#0F5132]">
+                      <span className="font-mono text-xs font-bold text-[#047857]">
                         {r.caloriesKkal} kkal
                       </span>
                     </div>
@@ -1996,7 +2529,7 @@ export default function AdminDashboardClient({
                   <div className="mt-4 flex items-center justify-end gap-2 border-t border-[#F1F5F9] pt-3">
                     <button
                       onClick={() => openEditRecipe(r)}
-                      className="rounded border border-[#CBD5E1] px-2.5 py-1 text-xs font-bold text-[#0F5132] hover:bg-[#F8FAFC]"
+                      className="rounded border border-[#CBD5E1] px-2.5 py-1 text-xs font-bold text-[#047857] hover:bg-[#F8FAFC]"
                     >
                       Edit
                     </button>
@@ -2020,26 +2553,156 @@ export default function AdminDashboardClient({
         )}
 
         {/* ========================================================= */}
+        {/* TAB: KATALOG MAKANAN (KALKULATOR NUTRISI)                 */}
+        {/* ========================================================= */}
+        {activeTab === "foods" && (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-3 border-b border-[#f1f5f9] pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h1 className="text-xl font-black text-[#047857]">Katalog Makanan</h1>
+                <p className="mt-0.5 text-xs text-[#64748B]">
+                  Master data makanan untuk Kalkulator Nutrisi di aplikasi. Nilai gizi per 100 gram.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={foodSearchQuery}
+                  onChange={(e) => {
+                    setFoodSearchQuery(e.target.value);
+                    fetchFoods(e.target.value);
+                  }}
+                  placeholder="Cari makanan..."
+                  className="w-48 rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={openAddFood}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#047857] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#059669]"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  <span>Tambah Makanan</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-4 py-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Daftar Makanan ({foods.length})
+                </h3>
+                {foodsLoading && (
+                  <span className="animate-pulse text-[11px] text-slate-500">Memuat data...</span>
+                )}
+              </div>
+
+              {foodsLoading && foods.length === 0 ? (
+                <div className="py-10 text-center text-xs text-slate-500">Memuat data...</div>
+              ) : foods.length === 0 ? (
+                <div className="py-10 text-center text-xs text-slate-500">
+                  <p className="font-semibold text-slate-700">Belum ada data makanan.</p>
+                  <p className="mt-1">Klik &quot;Tambah Makanan&quot; untuk menambahkan item katalog.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="border-b border-[#f1f5f9] bg-[#f8fafc] font-bold text-[#495057]">
+                      <tr>
+                        <th className="px-4 py-3">Nama</th>
+                        <th className="px-4 py-3">Kategori</th>
+                        <th className="px-4 py-3">Kalori</th>
+                        <th className="px-4 py-3">Karbo</th>
+                        <th className="px-4 py-3">Protein</th>
+                        <th className="px-4 py-3">Lemak</th>
+                        <th className="px-4 py-3">Gula</th>
+                        <th className="px-4 py-3">Serat</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#F1F5F9]">
+                      {foods.map((food) => (
+                        <tr key={food.id} className="transition hover:bg-[#f8fafc]/80">
+                          <td className="px-4 py-3">
+                            <p className="text-sm font-bold text-slate-900">{food.name}</p>
+                            {food.aliases && (
+                              <p className="text-[10px] text-slate-400">{food.aliases}</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                              {food.category}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">{food.caloriesKkal} kkal</td>
+                          <td className="px-4 py-3 text-slate-600">{food.carbsGram} g</td>
+                          <td className="px-4 py-3 text-slate-600">{food.proteinGram} g</td>
+                          <td className="px-4 py-3 text-slate-600">{food.fatGram} g</td>
+                          <td className="px-4 py-3 text-slate-600">{food.sugarGram} g</td>
+                          <td className="px-4 py-3 text-slate-600">{food.fiberGram} g</td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                food.isActive
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : "bg-slate-100 text-slate-500"
+                              }`}
+                            >
+                              {food.isActive ? "Aktif" : "Nonaktif"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => openEditFood(food)}
+                                className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 shadow-sm hover:bg-slate-50"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteFood(food.id, food.name)}
+                                className="rounded border border-rose-200 bg-white px-2 py-1 text-[11px] font-bold text-rose-600 shadow-sm hover:bg-rose-50"
+                              >
+                                Hapus
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
         {/* TAB 3: CMS PUSTAKA EDUKASI (ARTIKEL / MAKANAN / VIDEO / PODCAST) */}
         {/* ========================================================= */}
         {activeTab === "education" && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E2E8F0] pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#f1f5f9] pb-4">
               <div>
-                <h1 className="text-xl font-black text-[#0F5132]">Pustaka Materi Edukasi Kesehatan & Media</h1>
+                <h1 className="text-xl font-black text-[#047857]">Pustaka Materi Edukasi Kesehatan & Media</h1>
                 <p className="text-xs text-[#64748B] mt-0.5">
                   Kelola konten edukasi komprehensif: Artikel Bacaan, Panduan Gizi Pangan, Video Tutorial (YouTube/MP4), dan Podcast Audio (MP3/Spotify).
                 </p>
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="flex rounded-md border border-[#CBD5E1] bg-white p-0.5 text-xs font-semibold overflow-x-auto">
+                <div className="flex rounded-lg border border-[#CBD5E1] bg-white p-0.5 text-xs font-semibold overflow-x-auto">
                   {["semua", "artikel", "makanan", "video", "podcast"].map((cat) => (
                     <button
                       key={cat}
                       onClick={() => setArticleCategoryFilter(cat)}
                       className={`px-3 py-1 rounded text-xs capitalize transition ${
-                        articleCategoryFilter === cat ? "bg-[#0F5132] text-white font-bold" : "text-[#64748B] hover:text-black"
+                        articleCategoryFilter === cat ? "bg-[#047857] text-white font-bold" : "text-[#64748B] hover:text-black"
                       }`}
                     >
                       {cat === "video" ? "Video" : cat === "podcast" ? "Podcast" : cat === "makanan" ? "Gizi" : cat === "artikel" ? "Artikel" : "Semua"}
@@ -2065,7 +2728,7 @@ export default function AdminDashboardClient({
                     });
                     setShowArticleModal(true);
                   }}
-                  className="rounded-md bg-[#0F5132] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#146C43] shadow-xs flex items-center gap-1.5 whitespace-nowrap"
+                  className="rounded-lg bg-[#047857] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#059669] shadow-sm flex items-center gap-1.5 whitespace-nowrap"
                 >
                   <span>+ Tambah Materi</span>
                 </button>
@@ -2073,9 +2736,9 @@ export default function AdminDashboardClient({
             </div>
 
             {/* Articles List Table */}
-            <div className="overflow-hidden rounded-lg border border-[#E2E8F0] bg-white shadow-xs">
+            <div className="overflow-hidden rounded-xl border border-[#f1f5f9] bg-white shadow-sm">
               <table className="w-full text-xs text-left">
-                <thead className="bg-[#F8F9FA] text-[#495057] font-bold border-b border-[#E2E8F0]">
+                <thead className="bg-[#f8fafc] text-[#495057] font-bold border-b border-[#f1f5f9]">
                   <tr>
                     <th className="py-3 px-4">Judul & Narasumber</th>
                     <th className="py-3 px-4">Kategori & Media</th>
@@ -2086,7 +2749,7 @@ export default function AdminDashboardClient({
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9]">
                   {filteredArticles.map((a) => (
-                    <tr key={a.id} className="hover:bg-[#F8F9FA]">
+                    <tr key={a.id} className="hover:bg-[#f8fafc]">
                       <td className="py-3 px-4 max-w-xs">
                         <p className="font-bold text-sm text-[#0F172A]">{a.title}</p>
                         <div className="flex items-center gap-2 mt-0.5">
@@ -2132,7 +2795,7 @@ export default function AdminDashboardClient({
                       <td className="py-3 px-4 text-right whitespace-nowrap space-x-2">
                         <button
                           onClick={() => openEditArticle(a)}
-                          className="rounded border border-[#CBD5E1] px-2.5 py-1 font-bold text-[#0F5132] hover:bg-[#F8FAFC]"
+                          className="rounded border border-[#CBD5E1] px-2.5 py-1 font-bold text-[#047857] hover:bg-[#F8FAFC]"
                         >
                           Edit
                         </button>
@@ -2162,9 +2825,9 @@ export default function AdminDashboardClient({
         {/* ========================================================= */}
         {activeTab === "consultations" && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E2E8F0] pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#f1f5f9] pb-4">
               <div>
-                <h1 className="text-xl font-black text-[#0F5132]">Manajemen Telekonsultasi Tenaga Medis</h1>
+                <h1 className="text-xl font-black text-[#047857]">Manajemen Telekonsultasi Tenaga Medis</h1>
                 <p className="text-xs text-[#64748B] mt-0.5">
                   Triage pengajuan konsultasi daring ibu ke Bidan Komunitas, Ahli Gizi / Dietisien, dan Dokter Spesialis Anak.
                 </p>
@@ -2175,7 +2838,7 @@ export default function AdminDashboardClient({
                 <select
                   value={consultationStatusFilter}
                   onChange={(e) => setConsultationStatusFilter(e.target.value)}
-                  className="rounded-md border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-bold text-[#0F5132] focus:outline-hidden"
+                  className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs font-bold text-[#047857] focus:outline-hidden"
                 >
                   <option value="ALL">Semua ({consultations.length})</option>
                   <option value="PENDING">PENDING ({consultations.filter((c) => c.status.toUpperCase() === "PENDING").length})</option>
@@ -2183,7 +2846,7 @@ export default function AdminDashboardClient({
                   <option value="COMPLETED">COMPLETED ({consultations.filter((c) => c.status.toUpperCase() === "COMPLETED").length})</option>
                 </select>
 
-                <div className="hidden sm:flex rounded-md border border-[#CBD5E1] bg-white p-0.5 text-xs font-semibold">
+                <div className="hidden sm:flex rounded-lg border border-[#CBD5E1] bg-white p-0.5 text-xs font-semibold">
                   {["ALL", "PENDING", "ACTIVE", "COMPLETED"].map((st) => {
                     const count =
                       st === "ALL"
@@ -2196,13 +2859,13 @@ export default function AdminDashboardClient({
                         type="button"
                         onClick={() => setConsultationStatusFilter(st)}
                         className={`px-3 py-1 rounded text-xs transition flex items-center gap-1.5 ${
-                          isSelected ? "bg-[#0F5132] text-white font-bold shadow-xs" : "text-[#64748B] hover:text-black"
+                          isSelected ? "bg-[#047857] text-white font-bold shadow-sm" : "text-[#64748B] hover:text-black"
                         }`}
                       >
                         <span>{st === "ALL" ? "Semua" : st}</span>
                         <span
                           className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
-                            isSelected ? "bg-white/20 text-white" : "bg-[#F1F5F9] text-[#0F5132]"
+                            isSelected ? "bg-white/20 text-white" : "bg-[#F1F5F9] text-[#047857]"
                           }`}
                         >
                           {count}
@@ -2217,7 +2880,7 @@ export default function AdminDashboardClient({
             {/* Consultations List */}
             <div className="grid gap-4">
               {filteredConsultations.map((c) => (
-                <div key={c.id} className="rounded-lg border border-[#E2E8F0] bg-white p-4 shadow-xs">
+                <div key={c.id} className="rounded-xl border border-[#f1f5f9] bg-white p-4 shadow-sm">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#F1F5F9] pb-3 gap-2">
                     <div className="flex items-center gap-2">
                       <span
@@ -2253,14 +2916,14 @@ export default function AdminDashboardClient({
                       <p className="mt-1 text-xs text-[#64748B]">{c.notes || "Tidak ada catatan pengantar."}</p>
                     </div>
 
-                    <div className="rounded bg-[#F8F9FA] p-3 text-xs border border-[#E9ECEF]">
-                      <p className="font-bold text-[#0F5132]">Pemohon Konsultasi:</p>
+                    <div className="rounded bg-[#f8fafc] p-3 text-xs border border-[#E9ECEF]">
+                      <p className="font-bold text-[#047857]">Pemohon Konsultasi:</p>
                       <p className="mt-0.5 text-[#0F172A]">
                         {c.guardian.name || "Ibu"} ({c.guardian.email})
                       </p>
                       <p className="text-[#64748B]">Telp/WA: {c.guardian.phone || "-"}</p>
                       {c.guardian.children.length > 0 && (
-                        <p className="mt-1 text-[#0F5132]">
+                        <p className="mt-1 text-[#047857]">
                           Anak: {c.guardian.children.map((ch) => ch.name).join(", ")}
                         </p>
                       )}
@@ -2284,7 +2947,7 @@ export default function AdminDashboardClient({
                         setConsultationNotes(c.notes || "");
                         setConsultationStatusUpdate(c.status);
                       }}
-                      className="rounded bg-[#0F5132] px-3.5 py-1 text-xs font-bold text-white hover:bg-[#146C43]"
+                      className="rounded bg-[#047857] px-3.5 py-1 text-xs font-bold text-white hover:bg-[#059669]"
                     >
                       Update Status / Rekomendasi
                     </button>
@@ -2293,7 +2956,7 @@ export default function AdminDashboardClient({
               ))}
 
               {filteredConsultations.length === 0 && !consultationsLoading && (
-                <div className="rounded-lg border border-dashed border-[#CBD5E1] p-8 text-center bg-white">
+                <div className="rounded-xl border border-dashed border-[#CBD5E1] p-8 text-center bg-white">
                   <p className="text-xs font-bold text-[#64748B]">
                     Tidak ada tiket konsultasi dengan status &ldquo;{consultationStatusFilter}&rdquo;.
                   </p>
@@ -2308,9 +2971,9 @@ export default function AdminDashboardClient({
         {/* ========================================================= */}
         {activeTab === "families" && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E2E8F0] pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#f1f5f9] pb-4">
               <div>
-                <h1 className="text-xl font-black text-[#0F5132]">Direktori Keluarga & Profil Demografis</h1>
+                <h1 className="text-xl font-black text-[#047857]">Direktori Keluarga & Profil Demografis</h1>
                 <p className="text-xs text-[#64748B] mt-0.5">
                   Data master orang tua, riwayat medis anak, status skrining risiko, dan kurva gizi WHO untuk tindak lanjut Posyandu.
                 </p>
@@ -2325,11 +2988,11 @@ export default function AdminDashboardClient({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") fetchFamilies();
                   }}
-                  className="rounded-md border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs text-[#0F172A] placeholder-[#64748B] focus:border-[#0F5132] focus:outline-hidden"
+                  className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs text-[#0F172A] placeholder-[#64748B] focus:border-[#047857] focus:outline-hidden"
                 />
                 <button
                   onClick={() => fetchFamilies()}
-                  className="rounded-md bg-[#0F5132] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#146C43]"
+                  className="rounded-lg bg-[#047857] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#059669]"
                 >
                   Cari
                 </button>
@@ -2337,9 +3000,9 @@ export default function AdminDashboardClient({
             </div>
 
             {/* Families Table */}
-            <div className="overflow-hidden rounded-lg border border-[#E2E8F0] bg-white shadow-xs">
+            <div className="overflow-hidden rounded-xl border border-[#f1f5f9] bg-white shadow-sm">
               <table className="w-full text-xs text-left">
-                <thead className="bg-[#F8F9FA] text-[#495057] font-bold border-b border-[#E2E8F0]">
+                <thead className="bg-[#f8fafc] text-[#495057] font-bold border-b border-[#f1f5f9]">
                   <tr>
                     <th className="py-3 px-4">Profil Ibu / Wali</th>
                     <th className="py-3 px-4">Posyandu Binaan</th>
@@ -2352,7 +3015,7 @@ export default function AdminDashboardClient({
                 </thead>
                 <tbody className="divide-y divide-[#F1F5F9]">
                   {families.map((f) => (
-                    <tr key={f.id} className="hover:bg-[#F8F9FA]">
+                    <tr key={f.id} className="hover:bg-[#f8fafc]">
                       <td className="py-3 px-4">
                         <p className="font-bold text-[#0F172A]">{f.name || "Ibu"}</p>
                         <p className="font-mono text-[11px] text-[#64748B]">{f.email}</p>
@@ -2427,7 +3090,7 @@ export default function AdminDashboardClient({
                                 setAssignFamilyModal(f);
                                 setSelectedAssignPosyanduId(f.posyanduId || "");
                               }}
-                              className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 shadow-xs"
+                              className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-50 shadow-sm"
                               title="Ubah Alokasi Posyandu"
                             >
                               Posyandu
@@ -2438,7 +3101,7 @@ export default function AdminDashboardClient({
                               href={`https://wa.me/${f.phone.replace(/[^0-9]/g, "")}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 shadow-xs"
+                              className="rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-700 shadow-sm"
                             >
                               Hubungi
                             </a>
@@ -2460,180 +3123,32 @@ export default function AdminDashboardClient({
         )}
 
         {/* ========================================================= */}
-        {/* TAB 6: MISI & KUIS GAMIFIKASI (CMS ASLI)                   */}
+        {/* TAB 6: REKOMENDASI MENU HARIAN (CMS)                       */}
         {/* ========================================================= */}
         {activeTab === "cms" && (
           <div className="space-y-6">
-            <div className="border-b border-[#E2E8F0] pb-3">
-              <h1 className="text-xl font-black text-[#0F5132]">Kelola Misi & Kuis Gamifikasi Anak</h1>
+            <div className="border-b border-[#f1f5f9] pb-3">
+              <h1 className="text-xl font-black text-[#047857]">Kelola Rekomendasi Menu Harian Anak</h1>
               <p className="text-xs text-[#64748B] mt-0.5">
-                Kelola tantangan harian, butir kuis interaktif, dan menu rekomendasi yang tampil di antarmuka anak.
+                Kelola menu rekomendasi gizi seimbang yang tampil di antarmuka anak.
               </p>
             </div>
 
-            {/* Challenges Section */}
-            <div className="rounded-lg border border-[#E2E8F0] bg-white p-5 shadow-xs">
-              <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
-                <h3 className="text-sm font-black text-[#0F5132]">Tantangan Harian Anak</h3>
-                <button
-                  type="button"
-                  onClick={() => setShowAddChallenge(!showAddChallenge)}
-                  className="rounded-md bg-[#0F5132] px-2.5 py-1 text-xs font-bold text-white hover:bg-[#146C43]"
-                >
-                  {showAddChallenge ? "Tutup Form" : "+ Tambah Tantangan"}
-                </button>
-              </div>
-
-              {showAddChallenge && (
-                <form onSubmit={handleAddChallenge} className="mt-3 space-y-3 rounded-md bg-[#F8F9FA] p-3 border border-[#E2E8F0]">
-                  <input
-                    type="text"
-                    placeholder="Judul Tantangan"
-                    value={newChallenge.title}
-                    onChange={(e) => setNewChallenge({ ...newChallenge, title: e.target.value })}
-                    className="w-full rounded border border-[#CBD5E1] bg-white p-2 text-xs"
-                    required
-                  />
-                  <input
-                    type="text"
-                    placeholder="Deskripsi Tantangan"
-                    value={newChallenge.description}
-                    onChange={(e) => setNewChallenge({ ...newChallenge, description: e.target.value })}
-                    className="w-full rounded border border-[#CBD5E1] bg-white p-2 text-xs"
-                    required
-                  />
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="number"
-                      placeholder="Poin XP"
-                      value={newChallenge.xp}
-                      onChange={(e) => setNewChallenge({ ...newChallenge, xp: Number(e.target.value) })}
-                      className="w-24 rounded border border-[#CBD5E1] bg-white p-2 text-xs"
-                      required
-                    />
-                    <button type="submit" className="rounded bg-[#0F5132] px-4 py-2 text-xs font-bold text-white">
-                      Simpan
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              <div className="mt-3 space-y-2">
-                {challenges.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between rounded border border-[#F1F5F9] p-3 hover:bg-[#F8F9FA]">
-                    <div>
-                      <p className="font-bold text-xs text-[#0F172A]">{c.title} (+{c.xp} XP)</p>
-                      <p className="text-[11px] text-[#64748B]">{c.description}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleToggle("challenge", c.id, !c.isActive)}
-                        className={`rounded px-2 py-0.5 text-[10px] font-bold ${
-                          c.isActive ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {c.isActive ? "Aktif" : "Nonaktif"}
-                      </button>
-                      <button
-                        onClick={() => handleDelete("challenge", c.id)}
-                        className="text-xs font-bold text-rose-600 hover:underline"
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Quizzes Section */}
-            <div className="rounded-lg border border-[#E2E8F0] bg-white p-5 shadow-xs">
-              <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
-                <h3 className="text-sm font-black text-[#0F5132]">Butir Soal Kuis Interaktif</h3>
-                <button
-                  type="button"
-                  onClick={() => setShowAddQuiz(!showAddQuiz)}
-                  className="rounded-md bg-[#0F5132] px-2.5 py-1 text-xs font-bold text-white hover:bg-[#146C43]"
-                >
-                  {showAddQuiz ? "Tutup Form" : "+ Tambah Kuis"}
-                </button>
-              </div>
-
-              {showAddQuiz && (
-                <form onSubmit={handleAddQuiz} className="mt-3 space-y-3 rounded-md bg-[#F8F9FA] p-3 border border-[#E2E8F0]">
-                  <input
-                    type="text"
-                    placeholder="Pertanyaan Kuis"
-                    value={newQuiz.question}
-                    onChange={(e) => setNewQuiz({ ...newQuiz, question: e.target.value })}
-                    className="w-full rounded border border-[#CBD5E1] bg-white p-2 text-xs"
-                    required
-                  />
-                  <input
-                    type="text"
-                    placeholder="Pilihan Jawaban (pisahkan dengan koma)"
-                    value={newQuiz.options}
-                    onChange={(e) => setNewQuiz({ ...newQuiz, options: e.target.value })}
-                    className="w-full rounded border border-[#CBD5E1] bg-white p-2 text-xs"
-                    required
-                  />
-                  <input
-                    type="text"
-                    placeholder="Jawaban Benar"
-                    value={newQuiz.answer}
-                    onChange={(e) => setNewQuiz({ ...newQuiz, answer: e.target.value })}
-                    className="w-full rounded border border-[#CBD5E1] bg-white p-2 text-xs"
-                    required
-                  />
-                  <button type="submit" className="rounded bg-[#0F5132] px-4 py-2 text-xs font-bold text-white">
-                    Simpan Kuis
-                  </button>
-                </form>
-              )}
-
-              <div className="mt-3 space-y-2">
-                {quizzes.map((q) => (
-                  <div key={q.id} className="flex items-center justify-between rounded border border-[#F1F5F9] p-3 hover:bg-[#F8F9FA]">
-                    <div>
-                      <p className="font-bold text-xs text-[#0F172A]">{q.question}</p>
-                      <p className="text-[11px] text-[#64748B]">Kunci: {q.answer} (+{q.xp} XP)</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleToggle("quiz", q.id, !q.isActive)}
-                        className={`rounded px-2 py-0.5 text-[10px] font-bold ${
-                          q.isActive ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {q.isActive ? "Aktif" : "Nonaktif"}
-                      </button>
-                      <button
-                        onClick={() => handleDelete("quiz", q.id)}
-                        className="text-xs font-bold text-rose-600 hover:underline"
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* Recommendations Menu Section */}
-            <div className="rounded-lg border border-[#E2E8F0] bg-white p-5 shadow-xs">
+            <div className="rounded-xl border border-[#f1f5f9] bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
-                <h3 className="text-sm font-black text-[#0F5132]">Rekomendasi Menu Harian Anak</h3>
+                <h3 className="text-sm font-black text-[#047857]">Rekomendasi Menu Harian Anak</h3>
                 <button
                   type="button"
                   onClick={() => setShowAddMenu(!showAddMenu)}
-                  className="rounded-md bg-[#0F5132] px-2.5 py-1 text-xs font-bold text-white hover:bg-[#146C43]"
+                  className="rounded-lg bg-[#047857] px-2.5 py-1 text-xs font-bold text-white hover:bg-[#059669]"
                 >
                   {showAddMenu ? "Tutup Form" : "+ Tambah Menu Harian"}
                 </button>
               </div>
 
               {showAddMenu && (
-                <form onSubmit={handleAddMenu} className="mt-3 space-y-3 rounded-md bg-[#F8F9FA] p-3 border border-[#E2E8F0]">
+                <form onSubmit={handleAddMenu} className="mt-3 space-y-3 rounded-lg bg-[#f8fafc] p-3 border border-[#f1f5f9]">
                   <input
                     type="text"
                     placeholder="Judul Menu (cth: Sayur Bayam Jagung Manis)"
@@ -2650,7 +3165,7 @@ export default function AdminDashboardClient({
                     className="w-full rounded border border-[#CBD5E1] bg-white p-2 text-xs"
                     required
                   />
-                  <button type="submit" className="rounded bg-[#0F5132] px-4 py-2 text-xs font-bold text-white">
+                  <button type="submit" className="rounded bg-[#047857] px-4 py-2 text-xs font-bold text-white">
                     Simpan Menu
                   </button>
                 </form>
@@ -2658,7 +3173,7 @@ export default function AdminDashboardClient({
 
               <div className="mt-3 space-y-2">
                 {menus.map((m) => (
-                  <div key={m.id} className="flex items-center justify-between rounded border border-[#F1F5F9] p-3 hover:bg-[#F8F9FA]">
+                  <div key={m.id} className="flex items-center justify-between rounded border border-[#F1F5F9] p-3 hover:bg-[#f8fafc]">
                     <div>
                       <p className="font-bold text-xs text-[#0F172A]">{m.title}</p>
                       <p className="text-[11px] text-[#64748B]">{m.note}</p>
@@ -2681,14 +3196,14 @@ export default function AdminDashboardClient({
         {/* ========================================================= */}
         {activeTab === "bot" && (
           <div className="space-y-6">
-            <div className="border-b border-[#E2E8F0] pb-3">
-              <h1 className="text-xl font-black text-[#0F5132]">Konfigurasi AI & System Prompt</h1>
+            <div className="border-b border-[#f1f5f9] pb-3">
+              <h1 className="text-xl font-black text-[#047857]">Konfigurasi AI & System Prompt</h1>
               <p className="text-xs text-[#64748B] mt-0.5">
                 Pengaturan parameter LLM OpenAI-compatible, instruksi etika medis ramah anak, dan playground pengujian latensi.
               </p>
             </div>
 
-            <form onSubmit={handleSaveBotConfig} className="rounded-lg border border-[#E2E8F0] bg-white p-5 shadow-xs space-y-4">
+            <form onSubmit={handleSaveBotConfig} className="rounded-xl border border-[#f1f5f9] bg-white p-5 shadow-sm space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-bold text-[#0F172A]">Provider AI</label>
@@ -2725,7 +3240,7 @@ export default function AdminDashboardClient({
                 <button
                   type="submit"
                   disabled={botSaving}
-                  className="ml-auto rounded bg-[#0F5132] px-5 py-2 text-xs font-bold text-white hover:bg-[#146C43]"
+                  className="ml-auto rounded bg-[#047857] px-5 py-2 text-xs font-bold text-white hover:bg-[#059669]"
                 >
                   {botSaving ? "Menyimpan..." : "Simpan Konfigurasi"}
                 </button>
@@ -2733,8 +3248,8 @@ export default function AdminDashboardClient({
             </form>
 
             {/* Test Playground */}
-            <div className="rounded-lg border border-[#E2E8F0] bg-white p-5 shadow-xs space-y-3">
-              <h3 className="text-sm font-black text-[#0F5132]">Playground Uji Coba Chatbot</h3>
+            <div className="rounded-xl border border-[#f1f5f9] bg-white p-5 shadow-sm space-y-3">
+              <h3 className="text-sm font-black text-[#047857]">Playground Uji Coba Chatbot</h3>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -2753,7 +3268,7 @@ export default function AdminDashboardClient({
               </div>
 
               {testResult && (
-                <div className="rounded bg-[#F8F9FA] p-3 text-xs border border-[#E9ECEF]">
+                <div className="rounded bg-[#f8fafc] p-3 text-xs border border-[#E9ECEF]">
                   {testResult.reply && <p className="font-medium text-[#0F172A]">{testResult.reply}</p>}
                   {testResult.latencyMs && (
                     <p className="mt-1 text-[10px] text-[#64748B] font-mono">
@@ -2772,15 +3287,15 @@ export default function AdminDashboardClient({
         {/* ========================================================= */}
         {activeTab === "export" && (
           <div className="space-y-6">
-            <div className="border-b border-[#E2E8F0] pb-3">
-              <h1 className="text-xl font-black text-[#0F5132]">Ekspor Dataset Riset Anonim</h1>
+            <div className="border-b border-[#f1f5f9] pb-3">
+              <h1 className="text-xl font-black text-[#047857]">Ekspor Dataset Riset Anonim</h1>
               <p className="text-xs text-[#64748B] mt-0.5">
                 Unduh dataset anonim interaksi anak, kurva gizi WHO, dan kepatuhan pola makan sehat untuk keperluan analisis riset kesehatan masyarakat.
               </p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-lg border border-[#E2E8F0] bg-white p-5 shadow-xs">
+              <div className="rounded-xl border border-[#f1f5f9] bg-white p-5 shadow-sm">
                 <h3 className="text-sm font-bold text-[#0F172A]">Dataset Format CSV (Excel Compatible)</h3>
                 <p className="mt-1 text-xs text-[#64748B]">
                   Format tabel spreadsheet siap pakai untuk analisis SPSS, R, atau Python Pandas.
@@ -2788,13 +3303,13 @@ export default function AdminDashboardClient({
                 <a
                   href={`/api/admin/export?format=csv${selectedPosyanduFilter && selectedPosyanduFilter !== "ALL" ? `&posyanduId=${encodeURIComponent(selectedPosyanduFilter)}` : ""}`}
                   download="dataset_si_cehat.csv"
-                  className="mt-4 inline-block rounded bg-[#0F5132] px-4 py-2 text-xs font-bold text-white hover:bg-[#146C43]"
+                  className="mt-4 inline-block rounded bg-[#047857] px-4 py-2 text-xs font-bold text-white hover:bg-[#059669]"
                 >
                   Unduh Dataset (CSV)
                 </a>
               </div>
 
-              <div className="rounded-lg border border-[#E2E8F0] bg-white p-5 shadow-xs">
+              <div className="rounded-xl border border-[#f1f5f9] bg-white p-5 shadow-sm">
                 <h3 className="text-sm font-bold text-[#0F172A]">Dataset Format JSON Raw</h3>
                 <p className="mt-1 text-xs text-[#64748B]">
                   Struktur objek JSON lengkap untuk integrasi pipeline data atau model analitik prediktif.
@@ -2810,7 +3325,8 @@ export default function AdminDashboardClient({
             </div>
           </div>
         )}
-      </main>
+        </main>
+      </div>
 
       {/* ========================================================= */}
       {/* MODAL: FORM RESEP TRADISIONAL SEHAT                       */}
@@ -2819,13 +3335,13 @@ export default function AdminDashboardClient({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
-              <h3 className="text-base font-black text-[#0F5132]">
+              <h3 className="text-base font-black text-[#047857]">
                 {editingRecipeId ? "Edit Resep Tradisional" : "Tambah Resep Tradisional Baru"}
               </h3>
               <button
                 type="button"
                 onClick={() => setShowRecipeModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                className="rounded-xl p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6L6 18M6 6l12 12" />
@@ -2873,9 +3389,9 @@ export default function AdminDashboardClient({
               </div>
 
               {/* Nutrients Row */}
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 bg-[#F8F9FA] p-3 rounded-lg border border-[#E9ECEF] text-xs">
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 bg-[#f8fafc] p-3 rounded-xl border border-[#E9ECEF] text-xs">
                 <div>
-                  <label className="block font-bold text-[#0F5132]">Kalori (kkal)</label>
+                  <label className="block font-bold text-[#047857]">Kalori (kkal)</label>
                   <input
                     type="number"
                     value={recipeForm.caloriesKkal}
@@ -2980,7 +3496,7 @@ export default function AdminDashboardClient({
                 </button>
                 <button
                   type="submit"
-                  className="rounded bg-[#0F5132] px-5 py-2 text-xs font-bold text-white hover:bg-[#146C43]"
+                  className="rounded bg-[#047857] px-5 py-2 text-xs font-bold text-white hover:bg-[#059669]"
                 >
                   Simpan Resep
                 </button>
@@ -2997,13 +3513,13 @@ export default function AdminDashboardClient({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
-              <h3 className="text-base font-black text-[#0F5132]">
+              <h3 className="text-base font-black text-[#047857]">
                 {editingArticleId ? "Edit Materi Edukasi" : "Tambah Materi Edukasi Baru"}
               </h3>
               <button
                 type="button"
                 onClick={() => setShowArticleModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                className="rounded-xl p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6L6 18M6 6l12 12" />
@@ -3086,7 +3602,7 @@ export default function AdminDashboardClient({
 
               {/* MEDIA EMBED SECTION: VIDEO */}
               {articleForm.category === "video" && (
-                <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-3.5 space-y-3">
+                <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3.5 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
                       Konfigurasi Media Video
@@ -3135,7 +3651,7 @@ export default function AdminDashboardClient({
                     <div className="pt-1">
                       <p className="text-[11px] font-bold text-purple-900 mb-1.5">Pratinjau Pemutar Video Langsung:</p>
                       {getYouTubeEmbedUrl(articleForm.videoUrl) ? (
-                        <div className="aspect-video w-full overflow-hidden rounded-lg border border-purple-300 bg-black shadow-xs">
+                        <div className="aspect-video w-full overflow-hidden rounded-xl border border-purple-300 bg-black shadow-sm">
                           <iframe
                             src={getYouTubeEmbedUrl(articleForm.videoUrl)!}
                             title="Pratinjau Video"
@@ -3145,7 +3661,7 @@ export default function AdminDashboardClient({
                           />
                         </div>
                       ) : (
-                        <div className="aspect-video w-full overflow-hidden rounded-lg border border-purple-300 bg-black shadow-xs flex items-center justify-center">
+                        <div className="aspect-video w-full overflow-hidden rounded-xl border border-purple-300 bg-black shadow-sm flex items-center justify-center">
                           <video controls className="w-full h-full" src={articleForm.videoUrl}>
                             Browser tidak mendukung tag video HTML5.
                           </video>
@@ -3158,7 +3674,7 @@ export default function AdminDashboardClient({
 
               {/* MEDIA EMBED SECTION: PODCAST */}
               {articleForm.category === "podcast" && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3.5 space-y-3">
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
                       Konfigurasi Media Podcast
@@ -3207,7 +3723,7 @@ export default function AdminDashboardClient({
                     <div className="pt-1">
                       <p className="text-[11px] font-bold text-amber-900 mb-1.5">Uji Coba Pemutar Audio Langsung:</p>
                       {articleForm.mediaType === "spotify" && articleForm.audioUrl.includes("spotify.com") ? (
-                        <div className="rounded-lg overflow-hidden border border-amber-300">
+                        <div className="rounded-xl overflow-hidden border border-amber-300">
                           <iframe
                             src={articleForm.audioUrl.replace("open.spotify.com/episode/", "open.spotify.com/embed/episode/")}
                             width="100%"
@@ -3217,7 +3733,7 @@ export default function AdminDashboardClient({
                           />
                         </div>
                       ) : (
-                        <div className="rounded-lg border border-amber-300 bg-white p-3 shadow-xs">
+                        <div className="rounded-xl border border-amber-300 bg-white p-3 shadow-sm">
                           <audio controls className="w-full" src={articleForm.audioUrl}>
                             Browser tidak mendukung tag audio HTML5.
                           </audio>
@@ -3275,7 +3791,7 @@ export default function AdminDashboardClient({
                 </button>
                 <button
                   type="submit"
-                  className="rounded bg-[#0F5132] px-5 py-2 text-xs font-bold text-white hover:bg-[#146C43]"
+                  className="rounded bg-[#047857] px-5 py-2 text-xs font-bold text-white hover:bg-[#059669]"
                 >
                   Simpan Materi
                 </button>
@@ -3292,11 +3808,11 @@ export default function AdminDashboardClient({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
-              <h3 className="text-base font-black text-[#0F5132]">Tindak Lanjut Konsultasi Medis</h3>
+              <h3 className="text-base font-black text-[#047857]">Tindak Lanjut Konsultasi Medis</h3>
               <button
                 type="button"
                 onClick={() => setActiveConsultationModal(null)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                className="rounded-xl p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6L6 18M6 6l12 12" />
@@ -3349,7 +3865,7 @@ export default function AdminDashboardClient({
                 </button>
                 <button
                   type="submit"
-                  className="rounded bg-[#0F5132] px-5 py-2 text-xs font-bold text-white hover:bg-[#146C43]"
+                  className="rounded bg-[#047857] px-5 py-2 text-xs font-bold text-white hover:bg-[#059669]"
                 >
                   Simpan Pembaruan
                 </button>
@@ -3367,7 +3883,7 @@ export default function AdminDashboardClient({
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
               <div>
-                <h3 className="text-base font-black text-[#0F5132]">
+                <h3 className="text-base font-black text-[#047857]">
                   {editingPosyanduId ? "Edit Data Master Posyandu" : "Tambah Posyandu Multi-Tenancy"}
                 </h3>
                 <p className="text-xs text-[#64748B] mt-0.5">
@@ -3377,7 +3893,7 @@ export default function AdminDashboardClient({
               <button
                 type="button"
                 onClick={() => setShowPosyanduModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                className="rounded-xl p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6L6 18M6 6l12 12" />
@@ -3411,7 +3927,7 @@ export default function AdminDashboardClient({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 bg-[#F8F9FA] p-3 rounded-lg border border-[#E9ECEF]">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 bg-[#f8fafc] p-3 rounded-xl border border-[#E9ECEF]">
                 <div>
                   <label className="block text-xs font-bold text-[#0F172A]">RW</label>
                   <input
@@ -3503,7 +4019,7 @@ export default function AdminDashboardClient({
               {/* Initial Admin Credentials Section (only when creating new) */}
               {!editingPosyanduId && (
                 <div className="border-t border-slate-200 pt-3">
-                  <h4 className="text-xs font-bold text-[#0F5132] flex items-center gap-1.5">
+                  <h4 className="text-xs font-bold text-[#047857] flex items-center gap-1.5">
                     <span>Buat Kredensial Admin Posyandu Perdana (Opsional)</span>
                   </h4>
                   <p className="text-[11px] text-slate-500 mt-0.5">
@@ -3545,7 +4061,7 @@ export default function AdminDashboardClient({
                 <button
                   type="submit"
                   disabled={posyanduSaving}
-                  className="rounded bg-[#0F5132] px-5 py-2 text-xs font-bold text-white hover:bg-[#146C43] disabled:opacity-50"
+                  className="rounded bg-[#047857] px-5 py-2 text-xs font-bold text-white hover:bg-[#059669] disabled:opacity-50"
                 >
                   {posyanduSaving ? "Menyimpan..." : "Simpan Data Posyandu"}
                 </button>
@@ -3563,7 +4079,7 @@ export default function AdminDashboardClient({
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
               <div>
-                <h3 className="text-base font-black text-[#0F5132]">Tambah Kredensial Petugas</h3>
+                <h3 className="text-base font-black text-[#047857]">Tambah Kredensial Petugas</h3>
                 <p className="text-xs text-[#64748B] mt-0.5">
                   Posyandu: <strong>{adminModalPosyandu.name}</strong> ({adminModalPosyandu.code})
                 </p>
@@ -3571,7 +4087,7 @@ export default function AdminDashboardClient({
               <button
                 type="button"
                 onClick={() => setAdminModalPosyandu(null)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                className="rounded-xl p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6L6 18M6 6l12 12" />
@@ -3638,12 +4154,405 @@ export default function AdminDashboardClient({
                 <button
                   type="submit"
                   disabled={adminSaving}
-                  className="rounded bg-[#0F5132] px-5 py-2 text-xs font-bold text-white hover:bg-[#146C43] disabled:opacity-50"
+                  className="rounded bg-[#047857] px-5 py-2 text-xs font-bold text-white hover:bg-[#059669] disabled:opacity-50"
                 >
                   {adminSaving ? "Membuat Akun..." : "Buat Akun Petugas"}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: FORM KATALOG MAKANAN                                 */}
+      {/* ========================================================= */}
+      {showFoodModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+              <div>
+                <h3 className="text-base font-black text-[#047857]">
+                  {editingFoodId ? "Edit Makanan" : "Tambah Makanan"}
+                </h3>
+                <p className="mt-0.5 text-xs text-[#64748B]">
+                  Nilai gizi diisi per 100 gram / ml.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFoodModal(false)}
+                className="rounded-xl p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveFood} className="mt-4 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Nama Makanan *</label>
+                  <input
+                    type="text"
+                    required
+                    value={foodForm.name}
+                    onChange={(e) => setFoodForm({ ...foodForm, name: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-[#CBD5E1] p-2 text-xs"
+                    placeholder="cth: Nasi Putih"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Alias (pisahkan koma)</label>
+                  <input
+                    type="text"
+                    value={foodForm.aliases}
+                    onChange={(e) => setFoodForm({ ...foodForm, aliases: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-[#CBD5E1] p-2 text-xs"
+                    placeholder="cth: nasi, nasi putih hangat"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Kategori</label>
+                  <select
+                    value={foodForm.category}
+                    onChange={(e) => setFoodForm({ ...foodForm, category: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white p-2 text-xs"
+                  >
+                    <option value="makanan_pokok">Makanan Pokok</option>
+                    <option value="lauk_pauk">Lauk Pauk</option>
+                    <option value="sayuran">Sayuran</option>
+                    <option value="buah">Buah</option>
+                    <option value="minuman_camilan">Minuman / Camilan</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Porsi / Takaran</label>
+                  <input
+                    type="text"
+                    value={foodForm.portionDescription}
+                    onChange={(e) => setFoodForm({ ...foodForm, portionDescription: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-[#CBD5E1] p-2 text-xs"
+                    placeholder="cth: 1 centong (100 g)"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[#E9ECEF] bg-[#f8fafc] p-3">
+                <p className="mb-2 text-xs font-bold text-[#0F172A]">Nilai Gizi (per 100 g/ml)</p>
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500">Kalori (kkal)</label>
+                    <input type="number" min={0} step="0.1" value={foodForm.caloriesKkal}
+                      onChange={(e) => setFoodForm({ ...foodForm, caloriesKkal: Number(e.target.value) })}
+                      className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white p-1.5 text-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500">Karbo (g)</label>
+                    <input type="number" min={0} step="0.1" value={foodForm.carbsGram}
+                      onChange={(e) => setFoodForm({ ...foodForm, carbsGram: Number(e.target.value) })}
+                      className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white p-1.5 text-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500">Protein (g)</label>
+                    <input type="number" min={0} step="0.1" value={foodForm.proteinGram}
+                      onChange={(e) => setFoodForm({ ...foodForm, proteinGram: Number(e.target.value) })}
+                      className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white p-1.5 text-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500">Lemak (g)</label>
+                    <input type="number" min={0} step="0.1" value={foodForm.fatGram}
+                      onChange={(e) => setFoodForm({ ...foodForm, fatGram: Number(e.target.value) })}
+                      className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white p-1.5 text-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500">Gula (g)</label>
+                    <input type="number" min={0} step="0.1" value={foodForm.sugarGram}
+                      onChange={(e) => setFoodForm({ ...foodForm, sugarGram: Number(e.target.value) })}
+                      className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white p-1.5 text-xs" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500">Serat (g)</label>
+                    <input type="number" min={0} step="0.1" value={foodForm.fiberGram}
+                      onChange={(e) => setFoodForm({ ...foodForm, fiberGram: Number(e.target.value) })}
+                      className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white p-1.5 text-xs" />
+                  </div>
+                </div>
+              </div>
+
+              <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={foodForm.isActive}
+                  onChange={(e) => setFoodForm({ ...foodForm, isActive: e.target.checked })}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+                />
+                Aktif (tampil di Kalkulator Nutrisi)
+              </label>
+
+              <div className="flex justify-end gap-2 border-t border-[#F1F5F9] pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowFoodModal(false)}
+                  className="rounded-lg border border-[#CBD5E1] px-4 py-2 text-xs font-bold text-[#64748B]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={foodSaving}
+                  className="rounded-lg bg-[#047857] px-5 py-2 text-xs font-bold text-white hover:bg-[#059669] disabled:opacity-50"
+                >
+                  {foodSaving ? "Menyimpan..." : "Simpan Makanan"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: FORM MASTER TENAGA MEDIS                            */}
+      {/* ========================================================= */}
+      {showSpecialistModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
+              <div>
+                <h3 className="text-base font-black text-[#047857]">
+                  {editingSpecialistId ? "Edit Tenaga Medis" : "Tambah Tenaga Medis"}
+                </h3>
+                <p className="mt-0.5 text-xs text-[#64748B]">
+                  Data ini tampil sebagai pilihan pada fitur Telekonsultasi.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSpecialistModal(false)}
+                className="rounded-xl p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSpecialist} className="mt-4 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Nama & Gelar *</label>
+                  <input
+                    type="text"
+                    required
+                    value={specialistForm.name}
+                    onChange={(e) => setSpecialistForm({ ...specialistForm, name: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-[#CBD5E1] p-2 text-xs"
+                    placeholder="cth: dr. Bambang Irawan, Sp.A"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Jabatan / Spesialisasi *</label>
+                  <input
+                    type="text"
+                    required
+                    value={specialistForm.title}
+                    onChange={(e) => setSpecialistForm({ ...specialistForm, title: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-[#CBD5E1] p-2 text-xs"
+                    placeholder="cth: Spesialis Anak & Endokrinologi Pediatri"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Tipe Tenaga Medis *</label>
+                  <select
+                    value={specialistForm.type}
+                    onChange={(e) =>
+                      setSpecialistForm({
+                        ...specialistForm,
+                        type: e.target.value as "BIDAN" | "AHLI_GIZI" | "DOKTER",
+                      })
+                    }
+                    className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white p-2 text-xs"
+                  >
+                    <option value="DOKTER">Dokter</option>
+                    <option value="BIDAN">Bidan</option>
+                    <option value="AHLI_GIZI">Ahli Gizi</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Label Tipe</label>
+                  <input
+                    type="text"
+                    value={specialistForm.typeLabel}
+                    onChange={(e) => setSpecialistForm({ ...specialistForm, typeLabel: e.target.value })}
+                    className="mt-1 w-full rounded-lg border border-[#CBD5E1] p-2 text-xs"
+                    placeholder="cth: Dokter Spesialis Anak"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Pengalaman (tahun)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={60}
+                    value={specialistForm.experienceYears}
+                    onChange={(e) => setSpecialistForm({ ...specialistForm, experienceYears: Number(e.target.value) })}
+                    className="mt-1 w-full rounded-lg border border-[#CBD5E1] p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">Rating (0-5)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={5}
+                    step="0.01"
+                    value={specialistForm.rating}
+                    onChange={(e) => setSpecialistForm({ ...specialistForm, rating: Number(e.target.value) })}
+                    className="mt-1 w-full rounded-lg border border-[#CBD5E1] p-2 text-xs"
+                  />
+                </div>
+                <div className="flex items-end pb-2">
+                  <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={specialistForm.available}
+                      onChange={(e) => setSpecialistForm({ ...specialistForm, available: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+                    />
+                    Tersedia untuk konsultasi
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#0F172A]">Fokus Layanan (pisahkan dengan koma)</label>
+                <input
+                  type="text"
+                  value={specialistForm.focusText}
+                  onChange={(e) => setSpecialistForm({ ...specialistForm, focusText: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-[#CBD5E1] p-2 text-xs"
+                  placeholder="cth: Pencegahan Diabetes Anak, Porsi Gizi Seimbang"
+                />
+              </div>
+
+              {isSuperAdmin && (
+                <div>
+                  <label className="block text-xs font-bold text-[#0F172A]">
+                    Posyandu (opsional)
+                  </label>
+                  <select
+                    value={specialistForm.posyanduId}
+                    onChange={(e) =>
+                      setSpecialistForm({
+                        ...specialistForm,
+                        posyanduId: e.target.value,
+                      })
+                    }
+                    className="mt-1 w-full rounded-lg border border-[#CBD5E1] bg-white p-2 text-xs"
+                  >
+                    <option value="">Global / Semua Wilayah</option>
+                    {posyandus.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.code})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Kosongkan untuk menjadikan tenaga medis tersedia di semua wilayah.
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-[#0F172A]">URL Avatar (opsional)</label>
+                <input
+                  type="text"
+                  value={specialistForm.avatarUrl}
+                  onChange={(e) => setSpecialistForm({ ...specialistForm, avatarUrl: e.target.value })}
+                  className="mt-1 w-full rounded-lg border border-[#CBD5E1] p-2 text-xs font-mono"
+                  placeholder="/avatars/spec-dokter.png"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-[#F1F5F9] pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowSpecialistModal(false)}
+                  className="rounded-lg border border-[#CBD5E1] px-4 py-2 text-xs font-bold text-[#64748B]"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={specialistSaving}
+                  className="rounded-lg bg-[#047857] px-5 py-2 text-xs font-bold text-white hover:bg-[#059669] disabled:opacity-50"
+                >
+                  {specialistSaving ? "Menyimpan..." : "Simpan Tenaga Medis"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: HASIL RESET PASSWORD ADMIN POSYANDU                 */}
+      {/* ========================================================= */}
+      {resetPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="text-base font-black text-[#047857]">Password Berhasil Direset</h3>
+            <p className="mt-1 text-xs text-[#64748B]">
+              Simpan kredensial berikut dan segera bagikan ke pengguna terkait.
+            </p>
+
+            <div className="mt-4 space-y-2 rounded-xl border border-[#f1f5f9] bg-[#f8fafc] p-4 text-xs">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold text-slate-500">Email</span>
+                <span className="font-mono font-bold text-slate-900">
+                  {resetPasswordModal.email}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold text-slate-500">Password baru</span>
+                <span className="font-mono font-bold text-emerald-700">
+                  {resetPasswordModal.password}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    void navigator.clipboard?.writeText(
+                      resetPasswordModal.password
+                    );
+                  } catch {}
+                }}
+                className="rounded-lg border border-[#CBD5E1] px-4 py-2 text-xs font-bold text-[#64748B] hover:bg-slate-50"
+              >
+                Salin Password
+              </button>
+              <button
+                type="button"
+                onClick={() => setResetPasswordModal(null)}
+                className="rounded-lg bg-[#047857] px-5 py-2 text-xs font-bold text-white hover:bg-[#059669]"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3656,7 +4565,7 @@ export default function AdminDashboardClient({
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3">
               <div>
-                <h3 className="text-base font-black text-[#0F5132]">Petakan Keluarga ke Posyandu</h3>
+                <h3 className="text-base font-black text-[#047857]">Petakan Keluarga ke Posyandu</h3>
                 <p className="text-xs text-[#64748B] mt-0.5">
                   Ibu / Wali: <strong>{assignFamilyModal.name || "Ibu"}</strong> ({assignFamilyModal.email})
                 </p>
@@ -3664,7 +4573,7 @@ export default function AdminDashboardClient({
               <button
                 type="button"
                 onClick={() => setAssignFamilyModal(null)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                className="rounded-xl p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6L6 18M6 6l12 12" />
@@ -3703,7 +4612,7 @@ export default function AdminDashboardClient({
                 <button
                   type="submit"
                   disabled={assignSaving}
-                  className="rounded bg-[#0F5132] px-5 py-2 text-xs font-bold text-white hover:bg-[#146C43] disabled:opacity-50"
+                  className="rounded bg-[#047857] px-5 py-2 text-xs font-bold text-white hover:bg-[#059669] disabled:opacity-50"
                 >
                   {assignSaving ? "Menyimpan..." : "Simpan Pemetaan"}
                 </button>

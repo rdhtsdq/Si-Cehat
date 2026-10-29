@@ -17,6 +17,7 @@ import {
   consultations,
   notifications,
   deviceTokens,
+  medicalPersonnel,
 } from "../db/schema";
 import { getSession } from "../middleware/auth";
 import { createNotification } from "../services/notifications";
@@ -769,6 +770,52 @@ parentRoutes.post("/tracker/growth", async (c) => {
     console.error("Create growth measurement error:", error);
     return c.json(
       { error: { message: "Gagal menyimpan data pengukuran." } },
+      500
+    );
+  }
+});
+
+parentRoutes.delete("/tracker/growth/:id", async (c) => {
+  const session = await getSession(c);
+  if (!session?.user?.id) {
+    return c.json({ error: { message: "Harus login terlebih dahulu." } }, 401);
+  }
+
+  const id = c.req.param("id");
+
+  try {
+    const [existing] = await drizzleDb
+      .select({ childId: growthMeasurements.childId })
+      .from(growthMeasurements)
+      .where(eq(growthMeasurements.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return c.json({ error: { message: "Pengukuran tidak ditemukan." } }, 404);
+    }
+
+    const [child] = await drizzleDb
+      .select({ guardianId: children.guardianId })
+      .from(children)
+      .where(eq(children.id, existing.childId))
+      .limit(1);
+
+    if (
+      session.user.role !== "ADMIN" &&
+      (!child || child.guardianId !== session.user.id)
+    ) {
+      return c.json({ error: { message: "Akses ditolak." } }, 403);
+    }
+
+    await drizzleDb
+      .delete(growthMeasurements)
+      .where(eq(growthMeasurements.id, id));
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Delete growth measurement error:", error);
+    return c.json(
+      { error: { message: "Gagal menghapus pengukuran." } },
       500
     );
   }
@@ -2077,6 +2124,7 @@ const patchReminderSchema = z.object({
   isEnabled: z.boolean().optional(),
   time: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/).optional(),
   title: z.string().trim().min(2).max(60).optional(),
+  category: z.enum(["makan", "minum", "aktivitas", "tidur", "umum"]).optional(),
 });
 
 const DEFAULT_REMINDERS = [
@@ -2734,8 +2782,72 @@ const SPECIALISTS = [
   },
 ];
 
-parentRoutes.get("/consultations/specialists", (c) => {
+parentRoutes.get("/consultations/specialists", async (c) => {
   const type = c.req.query("type");
+
+  let scopePosyanduId = c.req.query("posyanduId") || null;
+  if (!scopePosyanduId) {
+    try {
+      const session = await getSession(c);
+      if (session?.user?.id) {
+        const [guardian] = await drizzleDb
+          .select({ posyanduId: guardians.posyanduId })
+          .from(guardians)
+          .where(eq(guardians.id, session.user.id))
+          .limit(1);
+        scopePosyanduId = guardian?.posyanduId ?? null;
+      }
+    } catch {}
+  }
+
+  try {
+    const rows = await drizzleDb
+      .select()
+      .from(medicalPersonnel)
+      .where(eq(medicalPersonnel.available, true))
+      .orderBy(asc(medicalPersonnel.name));
+
+    if (rows.length > 0) {
+      let list = rows
+        .filter(
+          (row) =>
+            !row.posyanduId ||
+            !scopePosyanduId ||
+            row.posyanduId === scopePosyanduId
+        )
+        .map((row) => {
+          let focus: string[] = [];
+          try {
+            const parsed = JSON.parse(row.focus);
+            if (Array.isArray(parsed)) {
+              focus = parsed.map((item) => String(item));
+            }
+          } catch {}
+          return {
+            id: row.id,
+            name: row.name,
+            title: row.title,
+            type: row.type,
+            typeLabel: row.typeLabel,
+            rating: row.rating,
+            experienceYears: row.experienceYears,
+            available: row.available,
+            avatarUrl: row.avatarUrl,
+            focus,
+          };
+        });
+
+      if (type) {
+        list = list.filter(
+          (specialist) => specialist.type.toLowerCase() === type.toLowerCase()
+        );
+      }
+      return c.json({ specialists: list });
+    }
+  } catch (error) {
+    console.error("Get medical personnel error:", error);
+  }
+
   let list = SPECIALISTS;
   if (type) {
     list = list.filter((s) => s.type.toLowerCase() === type.toLowerCase());

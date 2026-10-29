@@ -20,6 +20,8 @@ import {
   challenges,
   quizzes,
   recommendedMenus,
+  medicalPersonnel,
+  foodItems,
   botConfigs,
 } from "../db/schema";
 import { verifyAdmin, verifySuperAdmin } from "../middleware/auth";
@@ -778,6 +780,498 @@ adminRoutes.post("/posyandus/:id/admins", async (c) => {
     console.error("Create posyandu admin error:", error);
     return c.json(
       { error: { message: "Gagal membuat akun Admin Posyandu." } },
+      500
+    );
+  }
+});
+
+// 1b. Reset password akun Admin Posyandu
+adminRoutes.post("/posyandus/:id/admins/:adminId/reset-password", async (c) => {
+  const authCheck = await verifySuperAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  const posyanduId = c.req.param("id");
+  const adminId = c.req.param("adminId");
+
+  try {
+    const raw = await c.req.json().catch(() => ({}));
+    const requested =
+      raw && typeof raw.password === "string" ? raw.password.trim() : "";
+    const password =
+      requested.length >= 6 ? requested : crypto.randomBytes(4).toString("hex");
+
+    const [admin] = await drizzleDb
+      .select({ id: guardians.id, email: guardians.email })
+      .from(guardians)
+      .where(
+        and(
+          eq(guardians.id, adminId),
+          eq(guardians.role, "POSYANDU"),
+          eq(guardians.posyanduId, posyanduId)
+        )
+      )
+      .limit(1);
+
+    if (!admin) {
+      return c.json(
+        { error: { message: "Akun admin Posyandu tidak ditemukan." } },
+        404
+      );
+    }
+
+    const passwordHash = await hashPassword(password);
+    await drizzleDb
+      .update(guardians)
+      .set({ passwordHash })
+      .where(eq(guardians.id, adminId));
+
+    return c.json({ success: true, email: admin.email, password });
+  } catch (error) {
+    console.error("Reset posyandu admin password error:", error);
+    return c.json(
+      { error: { message: "Gagal mereset password admin Posyandu." } },
+      500
+    );
+  }
+});
+
+// 1c. Master Tenaga Medis (spesialis telekonsultasi)
+const specialistSchema = z.object({
+  name: z.string().trim().min(2, "Nama tenaga medis minimal 2 karakter"),
+  title: z.string().trim().min(2, "Jabatan minimal 2 karakter"),
+  type: z.enum(["BIDAN", "AHLI_GIZI", "DOKTER"]),
+  typeLabel: z.string().trim().min(2, "Label tipe minimal 2 karakter"),
+  rating: z.number().min(0).max(5).optional(),
+  experienceYears: z.number().int().min(0).max(60).optional(),
+  available: z.boolean().optional(),
+  avatarUrl: z.string().trim().optional(),
+  focus: z.array(z.string().trim()).optional(),
+  posyanduId: z.string().trim().optional().nullable(),
+});
+
+function specialistToJson(row: typeof medicalPersonnel.$inferSelect) {
+  let focus: string[] = [];
+  try {
+    const parsed = JSON.parse(row.focus);
+    if (Array.isArray(parsed)) focus = parsed.map((item) => String(item));
+  } catch {}
+  return {
+    id: row.id,
+    posyanduId: row.posyanduId,
+    name: row.name,
+    title: row.title,
+    type: row.type,
+    typeLabel: row.typeLabel,
+    rating: row.rating,
+    experienceYears: row.experienceYears,
+    available: row.available,
+    avatarUrl: row.avatarUrl,
+    focus,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+adminRoutes.get("/specialists", async (c) => {
+  const authCheck = await verifyAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  try {
+    const whereExpr =
+      authCheck.isPosyandu && authCheck.posyanduId
+        ? eq(medicalPersonnel.posyanduId, authCheck.posyanduId)
+        : undefined;
+
+    const rows = await drizzleDb
+      .select()
+      .from(medicalPersonnel)
+      .where(whereExpr)
+      .orderBy(asc(medicalPersonnel.name));
+    return c.json({ specialists: rows.map(specialistToJson) });
+  } catch (error) {
+    console.error("Get specialists error:", error);
+    return c.json(
+      { error: { message: "Gagal memuat master tenaga medis." } },
+      500
+    );
+  }
+});
+
+adminRoutes.post("/specialists", async (c) => {
+  const authCheck = await verifyAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  const raw = await c.req.json().catch(() => null);
+  const parsed = specialistSchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json(
+      {
+        error: {
+          message:
+            parsed.error.issues[0]?.message || "Input tenaga medis tidak valid.",
+        },
+      },
+      400
+    );
+  }
+
+  const targetPosyanduId = authCheck.isPosyandu
+    ? authCheck.posyanduId ?? null
+    : parsed.data.posyanduId || null;
+
+  if (targetPosyanduId) {
+    const [posyandu] = await drizzleDb
+      .select({ id: posyandus.id })
+      .from(posyandus)
+      .where(eq(posyandus.id, targetPosyanduId))
+      .limit(1);
+    if (!posyandu) {
+      return c.json({ error: { message: "Posyandu tidak ditemukan." } }, 404);
+    }
+  }
+
+  try {
+    const [created] = await drizzleDb
+      .insert(medicalPersonnel)
+      .values({
+        posyanduId: targetPosyanduId,
+        name: parsed.data.name,
+        title: parsed.data.title,
+        type: parsed.data.type,
+        typeLabel: parsed.data.typeLabel,
+        rating: parsed.data.rating ?? 4.8,
+        experienceYears: parsed.data.experienceYears ?? 0,
+        available: parsed.data.available ?? true,
+        avatarUrl: parsed.data.avatarUrl || null,
+        focus: JSON.stringify(parsed.data.focus ?? []),
+      })
+      .returning();
+
+    return c.json(
+      { success: true, specialist: specialistToJson(created) },
+      201
+    );
+  } catch (error) {
+    console.error("Create specialist error:", error);
+    return c.json(
+      { error: { message: "Gagal menambah tenaga medis." } },
+      500
+    );
+  }
+});
+
+adminRoutes.put("/specialists/:id", async (c) => {
+  const authCheck = await verifyAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  const id = c.req.param("id");
+  const raw = await c.req.json().catch(() => null);
+  const parsed = specialistSchema.partial().safeParse(raw);
+  if (!parsed.success) {
+    return c.json(
+      {
+        error: {
+          message:
+            parsed.error.issues[0]?.message || "Input tenaga medis tidak valid.",
+        },
+      },
+      400
+    );
+  }
+
+  try {
+    const [existing] = await drizzleDb
+      .select({
+        id: medicalPersonnel.id,
+        posyanduId: medicalPersonnel.posyanduId,
+      })
+      .from(medicalPersonnel)
+      .where(eq(medicalPersonnel.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return c.json(
+        { error: { message: "Tenaga medis tidak ditemukan." } },
+        404
+      );
+    }
+
+    if (authCheck.isPosyandu && existing.posyanduId !== authCheck.posyanduId) {
+      return c.json({ error: { message: "Akses ditolak." } }, 403);
+    }
+
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    const data = parsed.data;
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.type !== undefined) updateData.type = data.type;
+    if (data.typeLabel !== undefined) updateData.typeLabel = data.typeLabel;
+    if (data.rating !== undefined) updateData.rating = data.rating;
+    if (data.experienceYears !== undefined) {
+      updateData.experienceYears = data.experienceYears;
+    }
+    if (data.available !== undefined) updateData.available = data.available;
+    if (data.avatarUrl !== undefined) {
+      updateData.avatarUrl = data.avatarUrl || null;
+    }
+    if (data.focus !== undefined) {
+      updateData.focus = JSON.stringify(data.focus);
+    }
+
+    if (!authCheck.isPosyandu && data.posyanduId !== undefined) {
+      const nextPosyanduId = data.posyanduId || null;
+      if (nextPosyanduId) {
+        const [posyandu] = await drizzleDb
+          .select({ id: posyandus.id })
+          .from(posyandus)
+          .where(eq(posyandus.id, nextPosyanduId))
+          .limit(1);
+        if (!posyandu) {
+          return c.json(
+            { error: { message: "Posyandu tidak ditemukan." } },
+            404
+          );
+        }
+      }
+      updateData.posyanduId = nextPosyanduId;
+    }
+
+    const [updated] = await drizzleDb
+      .update(medicalPersonnel)
+      .set(updateData)
+      .where(eq(medicalPersonnel.id, id))
+      .returning();
+
+    return c.json({ success: true, specialist: specialistToJson(updated) });
+  } catch (error) {
+    console.error("Update specialist error:", error);
+    return c.json(
+      { error: { message: "Gagal memperbarui tenaga medis." } },
+      500
+    );
+  }
+});
+
+adminRoutes.delete("/specialists/:id", async (c) => {
+  const authCheck = await verifyAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  const id = c.req.param("id");
+  try {
+    const [existing] = await drizzleDb
+      .select({ posyanduId: medicalPersonnel.posyanduId })
+      .from(medicalPersonnel)
+      .where(eq(medicalPersonnel.id, id))
+      .limit(1);
+
+    if (!existing) {
+      return c.json(
+        { error: { message: "Tenaga medis tidak ditemukan." } },
+        404
+      );
+    }
+
+    if (authCheck.isPosyandu && existing.posyanduId !== authCheck.posyanduId) {
+      return c.json({ error: { message: "Akses ditolak." } }, 403);
+    }
+
+    await drizzleDb
+      .delete(medicalPersonnel)
+      .where(eq(medicalPersonnel.id, id));
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Delete specialist error:", error);
+    return c.json(
+      { error: { message: "Gagal menghapus tenaga medis." } },
+      500
+    );
+  }
+});
+
+// 1d. Master Katalog Makanan (Kalkulator Nutrisi)
+const foodItemSchema = z.object({
+  name: z.string().trim().min(2, "Nama makanan minimal 2 karakter"),
+  aliases: z.string().trim().optional(),
+  category: z.string().trim().min(2).optional(),
+  caloriesKkal: z.number().min(0).optional(),
+  carbsGram: z.number().min(0).optional(),
+  proteinGram: z.number().min(0).optional(),
+  fatGram: z.number().min(0).optional(),
+  sugarGram: z.number().min(0).optional(),
+  fiberGram: z.number().min(0).optional(),
+  portionDescription: z.string().trim().optional(),
+  isActive: z.boolean().optional(),
+});
+
+function adminFoodToJson(row: typeof foodItems.$inferSelect) {
+  return {
+    id: row.id,
+    name: row.name,
+    aliases: row.aliases,
+    category: row.category,
+    caloriesKkal: row.caloriesKkal,
+    carbsGram: row.carbsGram,
+    proteinGram: row.proteinGram,
+    fatGram: row.fatGram,
+    sugarGram: row.sugarGram,
+    fiberGram: row.fiberGram,
+    portionDescription: row.portionDescription,
+    isActive: row.isActive,
+    createdAt: row.createdAt,
+  };
+}
+
+adminRoutes.get("/foods", async (c) => {
+  const authCheck = await verifyAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  const search = c.req.query("search")?.trim();
+  try {
+    const conditions = search
+      ? [
+          or(
+            ilike(foodItems.name, `%${search}%`),
+            ilike(foodItems.aliases, `%${search}%`)
+          )!,
+        ]
+      : [];
+
+    const rows = await drizzleDb
+      .select()
+      .from(foodItems)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(asc(foodItems.name));
+
+    return c.json({ foods: rows.map(adminFoodToJson) });
+  } catch (error) {
+    console.error("Get foods error:", error);
+    return c.json(
+      { error: { message: "Gagal memuat katalog makanan." } },
+      500
+    );
+  }
+});
+
+adminRoutes.post("/foods", async (c) => {
+  const authCheck = await verifyAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  const raw = await c.req.json().catch(() => null);
+  const parsed = foodItemSchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json(
+      {
+        error: {
+          message:
+            parsed.error.issues[0]?.message || "Input makanan tidak valid.",
+        },
+      },
+      400
+    );
+  }
+
+  try {
+    const [created] = await drizzleDb
+      .insert(foodItems)
+      .values({
+        name: parsed.data.name,
+        aliases: parsed.data.aliases || null,
+        category: parsed.data.category || "makanan_pokok",
+        caloriesKkal: parsed.data.caloriesKkal ?? 100,
+        carbsGram: parsed.data.carbsGram ?? 15,
+        proteinGram: parsed.data.proteinGram ?? 5,
+        fatGram: parsed.data.fatGram ?? 3,
+        sugarGram: parsed.data.sugarGram ?? 2,
+        fiberGram: parsed.data.fiberGram ?? 2,
+        portionDescription: parsed.data.portionDescription || "100 g",
+        isActive: parsed.data.isActive ?? true,
+      })
+      .returning();
+
+    return c.json({ success: true, food: adminFoodToJson(created) }, 201);
+  } catch (error) {
+    console.error("Create food error:", error);
+    return c.json(
+      { error: { message: "Gagal menambah makanan ke katalog." } },
+      500
+    );
+  }
+});
+
+adminRoutes.put("/foods/:id", async (c) => {
+  const authCheck = await verifyAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  const id = c.req.param("id");
+  const raw = await c.req.json().catch(() => null);
+  const parsed = foodItemSchema.partial().safeParse(raw);
+  if (!parsed.success) {
+    return c.json(
+      {
+        error: {
+          message:
+            parsed.error.issues[0]?.message || "Input makanan tidak valid.",
+        },
+      },
+      400
+    );
+  }
+
+  try {
+    const [existing] = await drizzleDb
+      .select({ id: foodItems.id })
+      .from(foodItems)
+      .where(eq(foodItems.id, id))
+      .limit(1);
+    if (!existing) {
+      return c.json({ error: { message: "Makanan tidak ditemukan." } }, 404);
+    }
+
+    const updateData: Record<string, unknown> = {};
+    const data = parsed.data;
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.aliases !== undefined) updateData.aliases = data.aliases || null;
+    if (data.category !== undefined) updateData.category = data.category;
+    if (data.caloriesKkal !== undefined)
+      updateData.caloriesKkal = data.caloriesKkal;
+    if (data.carbsGram !== undefined) updateData.carbsGram = data.carbsGram;
+    if (data.proteinGram !== undefined)
+      updateData.proteinGram = data.proteinGram;
+    if (data.fatGram !== undefined) updateData.fatGram = data.fatGram;
+    if (data.sugarGram !== undefined) updateData.sugarGram = data.sugarGram;
+    if (data.fiberGram !== undefined) updateData.fiberGram = data.fiberGram;
+    if (data.portionDescription !== undefined)
+      updateData.portionDescription = data.portionDescription;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+
+    const [updated] = await drizzleDb
+      .update(foodItems)
+      .set(updateData)
+      .where(eq(foodItems.id, id))
+      .returning();
+
+    return c.json({ success: true, food: adminFoodToJson(updated) });
+  } catch (error) {
+    console.error("Update food error:", error);
+    return c.json(
+      { error: { message: "Gagal memperbarui makanan." } },
+      500
+    );
+  }
+});
+
+adminRoutes.delete("/foods/:id", async (c) => {
+  const authCheck = await verifyAdmin(c);
+  if (!authCheck.authorized) return authCheck.response;
+
+  const id = c.req.param("id");
+  try {
+    await drizzleDb.delete(foodItems).where(eq(foodItems.id, id));
+    return c.json({ success: true });
+  } catch (error) {
+    console.error("Delete food error:", error);
+    return c.json(
+      { error: { message: "Gagal menghapus makanan dari katalog." } },
       500
     );
   }

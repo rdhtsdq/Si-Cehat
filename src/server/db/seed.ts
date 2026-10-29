@@ -13,6 +13,7 @@ import {
   recommendedMenus,
   recipes,
   educationArticles,
+  medicalPersonnel,
   foodItems,
 } from "./schema";
 import { hashPassword } from "../utils/password";
@@ -519,26 +520,6 @@ Gunakan metode memasak kukus, rebus, atau panggang untuk membatasi lemak jenuh d
           "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=500&auto=format&fit=crop&q=60",
       },
       {
-        slug: "video-kenali-tanda-bahaya-diabetes-anak",
-        title: "Video: Kenali Tanda Bahaya Diabetes Anak Sejak Dini",
-        category: "video",
-        readTimeMinutes: 5,
-        summary:
-          "Video panduan visual mengenai gejala 4P (Poliuria, Polidipsia, Polifagia, Penurunan Berat) pada anak usia sekolah.",
-        content: `Dalam video edukasi ini, dokter spesialis anak menjelaskan bagaimana mendeteksi secara dini gejala 4P diabetes pada anak:
-1. Poliuria: Anak sangat sering buang air kecil, bahkan mengompol kembali.
-2. Polidipsia: Rasa haus berlebih yang tidak kunjung reda.
-3. Polifagia: Nafsu makan meningkat tajam namun berat badan justru merosot.
-4. Penurunan Berat Badan & Kelelahan: Tubuh kekurangan energi karena glukosa tidak dapat masuk ke sel tubuh.
-
-Simak penjelasan lengkap dan langkah pencegahan pertama di rumah melalui video berikut.`,
-        mediaType: "youtube",
-        videoUrl: "https://www.youtube.com/watch?v=kXYiU_JCYtU",
-        speakerOrSource: "dr. Amanda Sp.A - Satgas Gizi & Diabetes Anak",
-        imageUrl:
-          "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=500&auto=format&fit=crop&q=60",
-      },
-      {
         slug: "podcast-bicara-pola-asuh-gizi-anak",
         title: "Podcast: Bicara Pola Asuh Gizi Anak & Batasi Minuman Manis",
         category: "podcast",
@@ -600,6 +581,61 @@ Dengarkan podcast ini sambil menemani aktivitas santai bersama keluarga!`,
   console.log(
     `Nutrition catalog: ${foodInserted} inserted, ${foodUpdated} updated.`
   );
+
+  // Medical personnel / master tenaga medis (idempotent by name).
+  const [{ total: personnelCount }] = await drizzleDb
+    .select({ total: count() })
+    .from(medicalPersonnel);
+  if (Number(personnelCount) === 0) {
+    await drizzleDb.insert(medicalPersonnel).values([
+      {
+        name: "Bidan Siti Nurhaliza, Amd.Keb",
+        title: "Bidan Praktik Mandiri",
+        type: "BIDAN",
+        typeLabel: "Bidan Komunitas & KIA",
+        rating: 4.9,
+        experienceYears: 8,
+        available: true,
+        avatarUrl: "/avatars/spec-bidan.png",
+        focus: JSON.stringify([
+          "Tumbuh Kembang Balita",
+          "Pola Makan Bayi & Batita",
+          "Kesehatan Ibu",
+        ]),
+      },
+      {
+        name: "Nurul Aini, S.Gz, RD",
+        title: "Nutrisionis Pediatrik Klinis",
+        type: "AHLI_GIZI",
+        typeLabel: "Konsultan Diet & Gizi Anak",
+        rating: 4.95,
+        experienceYears: 6,
+        available: true,
+        avatarUrl: "/avatars/spec-gizi.png",
+        focus: JSON.stringify([
+          "Pencegahan Diabetes Anak",
+          "Manajemen Gula Darah",
+          "Porsi Gizi Seimbang",
+        ]),
+      },
+      {
+        name: "dr. Bambang Irawan, Sp.A",
+        title: "Spesialis Anak & Endokrinologi Pediatri",
+        type: "DOKTER",
+        typeLabel: "Dokter Spesialis Anak",
+        rating: 4.88,
+        experienceYears: 12,
+        available: true,
+        avatarUrl: "/avatars/spec-dokter.png",
+        focus: JSON.stringify([
+          "Skrining & Terapi Diabetes Anak",
+          "Obesitas Anak",
+          "Metabolisme Glukosa",
+        ]),
+      },
+    ]);
+    console.log("Created default medical personnel.");
+  }
 
   console.log("Seeding finished successfully.");
 }

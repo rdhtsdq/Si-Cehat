@@ -58,9 +58,13 @@ export default function AdminPage() {
 
   if (checking || !currentUser) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-[#f2f0e7] text-[#18372e]">
-        <div className="text-center text-sm font-black">
-          Memverifikasi sesi Administrator & Posyandu...
+      <main
+        className="min-h-screen flex items-center justify-center bg-[#f7faf8] text-slate-900"
+        style={{ fontFamily: "'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" }}
+      >
+        <div className="flex flex-col items-center gap-3 text-center text-sm font-semibold text-slate-500">
+          <span className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" aria-hidden="true" />
+          Memverifikasi sesi Administrator &amp; Posyandu...
         </div>
       </main>
     );

@@ -2,6 +2,7 @@ import {
   pgTable,
   text,
   integer,
+  bigint,
   doublePrecision,
   boolean,
   timestamp,
@@ -22,6 +23,27 @@ export const posyandus = pgTable("Posyandu", {
   address: text("address"),
   contactPhone: text("contactPhone"),
   leaderName: text("leaderName"),
+  createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt", { mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const medicalPersonnel = pgTable("MedicalPersonnel", {
+  id: text("id").primaryKey().$defaultFn(uuidDefault),
+  posyanduId: text("posyanduId").references(() => posyandus.id, {
+    onDelete: "set null",
+    onUpdate: "cascade",
+  }),
+  name: text("name").notNull(),
+  title: text("title").notNull().default("Tenaga Medis"),
+  type: text("type").notNull().default("DOKTER"),
+  typeLabel: text("typeLabel").notNull().default("Dokter"),
+  rating: doublePrecision("rating").notNull().default(4.8),
+  experienceYears: integer("experienceYears").notNull().default(0),
+  available: boolean("available").notNull().default(true),
+  avatarUrl: text("avatarUrl"),
+  focus: text("focus").notNull().default("[]"),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
   updatedAt: timestamp("updatedAt", { mode: "date" })
     .notNull()
@@ -95,13 +117,13 @@ export const detailedFoodLogs = pgTable("DetailedFoodLog", {
   mealSlot: text("mealSlot").notNull(),
   foodName: text("foodName").notNull(),
   portion: text("portion").notNull().default("1 porsi sedang"),
+  foodItemId: text("foodItemId"),
   caloriesKkal: integer("caloriesKkal"),
   carbsGram: doublePrecision("carbsGram"),
   proteinGram: doublePrecision("proteinGram"),
   fatGram: doublePrecision("fatGram"),
   sugarGram: doublePrecision("sugarGram"),
   fiberGram: doublePrecision("fiberGram"),
-  foodItemId: text("foodItemId"),
   imageUrl: text("imageUrl"),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 });
@@ -507,7 +529,7 @@ export const gameEvents = pgTable("GameEvent", {
     .notNull()
     .references(() => gameSessions.id, { onDelete: "cascade", onUpdate: "cascade" }),
   eventType: text("eventType").notNull(), // GAME_START, ITEM_SELECTED, ITEM_PLACED, ITEM_REMOVED, PLATE_CHECKED, KNOWLEDGE_ANSWERED
-  sequence: integer("sequence").notNull().default(0),
+  sequence: bigint("sequence", { mode: "number" }).notNull().default(0),
   payload: text("payload").notNull().default("{}"), // JSON stringified
   occurredAt: timestamp("occurredAt", { mode: "date" }).notNull().defaultNow(),
   createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),

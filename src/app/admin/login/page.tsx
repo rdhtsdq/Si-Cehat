@@ -53,30 +53,30 @@ function AdminLoginForm() {
   }
 
   return (
-    <div className="rounded-3xl border border-[#18372e]/20 bg-white p-6 shadow-sm sm:p-8">
+    <div className="rounded-3xl border border-slate-100 bg-white p-7 shadow-xl shadow-emerald-900/5 sm:p-9">
       <div className="flex items-center gap-2">
-        <span className="rounded-full bg-[#18372e] px-2.5 py-0.5 text-xs font-black text-white">
+        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
           Akses Terbatas
         </span>
-        <span className="text-xs font-bold text-[#48665c]">Panel Riset & CMS</span>
+        <span className="text-xs font-semibold text-slate-500">Panel Riset & CMS</span>
       </div>
 
-      <h1 className="display-font mt-3 text-2xl font-black text-[#18372e]">
+      <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-slate-900">
         Masuk Administrator
       </h1>
-      <p className="mt-1 text-xs font-bold text-[#48665c]">
+      <p className="mt-1.5 text-sm leading-6 text-slate-500">
         Halaman ini terisolasi khusus peneliti & koordinator program. Orang tua / wali tidak dapat mengakses panel ini.
       </p>
 
       {error && (
-        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs font-bold text-red-700" role="alert">
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs font-semibold leading-5 text-red-700" role="alert">
           {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="block text-xs font-black uppercase tracking-wider text-[#48665c]">
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
             Email Admin
           </label>
           <input
@@ -85,12 +85,12 @@ function AdminLoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="admin@sicehat.id"
-            className="mt-1 w-full rounded-xl border border-[#18372e]/30 px-3 py-2.5 text-sm font-semibold outline-none transition focus:border-[#18372e] focus:ring-1 focus:ring-[#18372e]"
+            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-black uppercase tracking-wider text-[#48665c]">
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
             Kata Sandi
           </label>
           <input
@@ -99,47 +99,58 @@ function AdminLoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
-            className="mt-1 w-full rounded-xl border border-[#18372e]/30 px-3 py-2.5 text-sm font-semibold outline-none transition focus:border-[#18372e] focus:ring-1 focus:ring-[#18372e]"
+            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-100"
           />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="mt-2 w-full rounded-2xl bg-[#18372e] py-3 text-sm font-black text-white transition hover:bg-[#265747] disabled:opacity-50"
+          className="mt-2 w-full rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/25 transition hover:bg-emerald-700 disabled:opacity-50"
         >
           {loading ? "Memverifikasi Otorisasi..." : "Masuk ke Panel Admin"}
         </button>
       </form>
-
-      <div className="mt-6 border-t border-[#18372e]/10 pt-4 flex flex-col gap-2 text-center text-xs font-bold">
-        <Link
-          href="/parent"
-          className="text-[#48665c] hover:text-[#18372e] hover:underline"
-        >
-          ← Anda Orang Tua? Buka Dashboard Anak Anda
-        </Link>
-      </div>
     </div>
   );
 }
 
 export default function AdminLoginPage() {
   return (
-    <main className="min-h-screen bg-[#f2f0e7] px-4 py-12 text-[#18372e] sm:px-6">
+    <main
+      className="relative min-h-screen overflow-hidden bg-[#f7faf8] px-4 py-12 text-slate-900 sm:px-6"
+      style={{ fontFamily: "'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" }}
+    >
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute left-1/2 top-[-10rem] h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-emerald-200/40 blur-3xl" />
+        <div className="absolute right-[-8rem] bottom-[-6rem] h-72 w-72 rounded-full bg-teal-200/40 blur-3xl" />
+      </div>
+
       <div className="mx-auto max-w-md">
         <header className="mb-8 text-center">
-          <Link className="display-font text-3xl font-black text-[#18372e]" href="/">
-            Si Cehat
+          <Link className="inline-flex items-center gap-2.5" href="/">
+            <span className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm shadow-emerald-600/30">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                <path d="M12 21c-4.5 0-8-3.2-8-7.2C4 8.3 8.5 3.8 12 2c3.5 1.8 8 6.3 8 11.8 0 4-3.5 7.2-8 7.2Z" />
+                <path d="M12 21V11" />
+              </svg>
+            </span>
+            <span className="text-2xl font-extrabold tracking-tight text-slate-900">Si Cehat</span>
           </Link>
-          <p className="mt-1 text-sm font-bold text-[#48665c]">
+          <p className="mt-3 text-sm font-semibold text-slate-500">
             Sistem Evaluasi Edukasi Gizi Anak
           </p>
         </header>
 
-        <Suspense fallback={<div className="text-center text-xs font-bold text-[#48665c]">Memuat formulir...</div>}>
+        <Suspense fallback={<div className="text-center text-xs font-semibold text-slate-500">Memuat formulir...</div>}>
           <AdminLoginForm />
         </Suspense>
+
+        <p className="mt-6 text-center text-xs font-medium text-slate-400">
+          <Link href="/" className="font-semibold text-emerald-700 transition hover:underline">
+            ← Kembali ke beranda
+          </Link>
+        </p>
       </div>
     </main>
   );

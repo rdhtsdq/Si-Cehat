@@ -2226,12 +2226,6 @@ print(response.json())`;
           <span className="text-[#005CAA] font-bold border-b-2 border-[#005CAA] pb-1 hidden md:inline-block">
             Dokumentasi API
           </span>
-          <Link
-            href="/parent/login"
-            className="text-[#495057] hover:text-[#005CAA] transition-colors hidden sm:inline-block"
-          >
-            Area Orang Tua
-          </Link>
 
           {/* BCA Language Switcher Pill */}
           <div className="flex items-center bg-[#F3F4F6] p-0.5 rounded-full border border-[#E5E7EB] text-[11px]">

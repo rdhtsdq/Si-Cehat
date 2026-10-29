@@ -68,11 +68,11 @@ export default function GameExitPage() {
 
           <div className="mt-6 flex flex-col gap-2.5">
             <Link
-              href="/child"
+              href="/"
               className="game-btn flex items-center justify-center gap-2 w-full rounded-xl bg-[#247a4d] py-3 text-xs font-black text-white"
             >
               <CheckIcon className="w-4 h-4" />
-              <span>Kembali ke Petualangan Anak</span>
+              <span>Kembali ke Beranda</span>
             </Link>
 
             <Link

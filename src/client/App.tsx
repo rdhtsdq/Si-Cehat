@@ -2,11 +2,6 @@ import React, { Suspense, lazy } from "react";
 import { Route, Switch, Link } from "wouter";
 import OnboardingPage from "@/app/page";
 
-const AvatarPage = lazy(() => import("@/app/avatar/page"));
-const ChildPage = lazy(() => import("@/app/child/page"));
-const ChatPage = lazy(() => import("@/app/chat/page"));
-const GuardianLoginPage = lazy(() => import("@/app/parent/login/page"));
-const ParentPage = lazy(() => import("@/app/parent/page"));
 const AdminLoginPage = lazy(() => import("@/app/admin/login/page"));
 const AdminPage = lazy(() => import("@/client/pages/AdminPage"));
 const ApiDocsPage = lazy(() => import("@/app/api-docs/page"));
@@ -40,11 +35,6 @@ export function App() {
     <Suspense fallback={<RouteLoadingFallback />}>
       <Switch>
         <Route path="/" component={RootPageRouter} />
-        <Route path="/avatar" component={AvatarPage} />
-        <Route path="/child" component={ChildPage} />
-        <Route path="/chat" component={ChatPage} />
-        <Route path="/parent/login" component={GuardianLoginPage} />
-        <Route path="/parent" component={ParentPage} />
         <Route path="/admin/login" component={AdminLoginPage} />
         <Route path="/admin" component={AdminPage} />
         <Route path="/playlab" component={PlayLabGamePage} />
